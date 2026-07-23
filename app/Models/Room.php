@@ -18,6 +18,7 @@ class Room extends Model
         'title',
         'category',
         'persona',  
+        'model',
         'system_prompt',
         'memory_config',
     ];

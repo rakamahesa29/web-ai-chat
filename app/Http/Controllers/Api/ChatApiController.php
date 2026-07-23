@@ -356,6 +356,7 @@ class ChatApiController extends Controller
             'title'      => $room->title,
             'category'   => $room->category,
             'persona'    => $room->persona,
+            'model'      => $room->model ?? 'ollama',
             'created_at' => $room->created_at?->toISOString(),
             'updated_at' => $room->updated_at?->toISOString(),
         ];
