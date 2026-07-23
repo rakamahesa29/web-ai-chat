@@ -1,0 +1,245 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+    :root {
+        /* Light mode - soft gray background, soft black text */
+        --hermes-bg: 245 245 247;
+        --hermes-surface: 255 255 255;
+        --hermes-card: 255 255 255;
+        --hermes-border: 226 228 233;
+        --hermes-hover: 240 241 243;
+        --hermes-text: 28 28 30;
+        --hermes-muted: 110 110 115;
+        --hermes-accent: 99 102 241;
+        --hermes-success: 34 197 94;
+        --hermes-warning: 245 158 11;
+        --hermes-danger: 239 68 68;
+    }
+
+    .dark {
+        /* Dark mode - existing Hermes dark theme */
+        --hermes-bg: 13 13 13;
+        --hermes-surface: 20 20 20;
+        --hermes-card: 26 26 26;
+        --hermes-border: 42 42 42;
+        --hermes-hover: 37 37 37;
+        --hermes-text: 229 229 229;
+        --hermes-muted: 136 136 136;
+        --hermes-accent: 99 102 241;
+        --hermes-success: 34 197 94;
+        --hermes-warning: 245 158 11;
+        --hermes-danger: 239 68 68;
+    }
+
+    html {
+        font-family: 'Inter', system-ui, sans-serif;
+    }
+    
+    body {
+        @apply bg-hermes-bg text-hermes-text antialiased;
+    }
+    
+    ::-webkit-scrollbar {
+        width: 6px;
+        height: 6px;
+    }
+    
+    ::-webkit-scrollbar-track {
+        background: rgb(var(--hermes-surface));
+    }
+    
+    ::-webkit-scrollbar-thumb {
+        background: rgb(var(--hermes-border));
+        border-radius: 9999px;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+        background: rgb(var(--hermes-muted));
+    }
+}
+
+@layer components {
+    .hermes-btn {
+        @apply px-4 py-2 rounded-lg font-medium transition-all duration-200 
+               flex items-center gap-2 text-sm;
+    }
+    
+    .hermes-btn-primary {
+        @apply hermes-btn bg-hermes-accent text-white hover:bg-indigo-600;
+    }
+    
+    .hermes-btn-ghost {
+        @apply hermes-btn bg-transparent text-hermes-muted hover:text-hermes-text hover:bg-hermes-hover;
+    }
+    
+    .hermes-btn-icon {
+        @apply p-2 rounded-lg text-hermes-muted hover:text-hermes-text hover:bg-hermes-hover transition-colors;
+    }
+    
+    .hermes-input {
+        @apply w-full bg-hermes-surface border border-hermes-border rounded-lg px-4 py-3 
+               text-hermes-text placeholder-hermes-muted focus:outline-none focus:ring-2 
+               focus:ring-hermes-accent focus:border-transparent transition-all;
+    }
+    
+    .hermes-card {
+        @apply bg-hermes-card border border-hermes-border rounded-xl shadow-sm;
+    }
+
+    .dark .hermes-card {
+        @apply shadow-none;
+    }
+    
+    .hermes-sidebar-item {
+        @apply flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium
+               text-hermes-muted hover:text-hermes-text hover:bg-hermes-hover transition-all cursor-pointer;
+    }
+    
+    .hermes-sidebar-item.active {
+        @apply bg-hermes-accent/10 text-hermes-accent;
+    }
+    
+    .hermes-status-bar {
+        @apply flex items-center gap-4 px-4 py-2 bg-hermes-surface border-t border-hermes-border text-xs;
+    }
+    
+    .hermes-status-item {
+        @apply flex items-center gap-2 text-hermes-muted;
+    }
+    
+    .hermes-status-dot {
+        @apply w-2 h-2 rounded-full;
+    }
+    
+    .hermes-status-dot.connected {
+        @apply bg-hermes-success animate-pulse;
+    }
+    
+    .hermes-status-dot.disconnected {
+        @apply bg-hermes-danger;
+    }
+    
+    .hermes-status-dot.thinking {
+        @apply bg-hermes-warning animate-pulse;
+    }
+    
+    .hermes-dropdown {
+        @apply absolute right-0 top-full mt-2 w-48 py-1 bg-hermes-card border border-hermes-border 
+               rounded-lg shadow-xl z-50 opacity-0 invisible transition-all duration-200;
+    }
+    
+    .hermes-dropdown.show {
+        @apply opacity-100 visible;
+    }
+    
+    .hermes-dropdown-item {
+        @apply flex items-center gap-3 px-4 py-2.5 text-sm text-hermes-muted 
+               hover:text-hermes-text hover:bg-hermes-hover transition-colors cursor-pointer;
+    }
+    
+    /* ── Sidebar ── */
+    .sidebar {
+        @apply fixed inset-y-0 left-0 z-40 flex flex-col bg-hermes-surface border-r border-hermes-border
+               transition-all duration-300 ease-in-out;
+    }
+    
+    .sidebar-expanded {
+        width: 260px;
+    }
+    
+    .sidebar-collapsed {
+        width: 68px;
+    }
+    
+    .sidebar-link {
+        @apply flex items-center gap-3 px-3 py-2.5 mx-2 rounded-lg text-sm font-medium
+               text-hermes-muted hover:text-hermes-text hover:bg-hermes-hover 
+               transition-all duration-200 cursor-pointer whitespace-nowrap overflow-hidden;
+    }
+    
+    .sidebar-link.active {
+        @apply bg-hermes-accent/10 text-hermes-accent;
+    }
+    
+    .sidebar-link i, 
+    .sidebar-link svg {
+        @apply w-5 h-5 shrink-0;
+    }
+    
+    .sidebar-link span {
+        @apply transition-opacity duration-200;
+    }
+    
+    .sidebar-collapsed .sidebar-link span,
+    .sidebar-collapsed .sidebar-label,
+    .sidebar-collapsed .sidebar-user-info {
+        @apply opacity-0 invisible w-0;
+    }
+    
+    .sidebar-collapsed .sidebar-link {
+        @apply justify-center px-0 gap-0 w-[-webkit-fill-available];
+    }
+    
+    .sidebar-section-label {
+        @apply px-4 py-2 text-[10px] font-semibold uppercase tracking-widest text-hermes-muted/50;
+    }
+
+    .sidebar-bottom {
+        @apply mt-auto border-t border-hermes-border pt-3 pb-4 space-y-1 grid items-center;
+    }
+
+    .sidebar-collapsed .sidebar-bottom {
+        @apply border-t-0 pt-2 pb-2;
+    }
+
+    /* ── Mobile overlay ── */
+    .sidebar-overlay {
+        @apply fixed inset-0 z-30 bg-black/50 backdrop-blur-sm md:hidden
+               transition-opacity duration-300;
+    }
+    
+    /* ── Collapse toggle button ── */
+    .sidebar-collapse-btn {
+        @apply w-8 h-8 rounded-lg flex items-center justify-center shrink-0
+               text-hermes-muted hover:text-hermes-text hover:bg-hermes-hover
+               transition-all duration-200 cursor-pointer;
+    }
+    
+    /* ── Main content shift ── */
+    .main-with-sidebar-expanded {
+        @apply ml-[260px] transition-all duration-300;
+    }
+    
+    .main-with-sidebar-collapsed {
+        @apply ml-[68px] transition-all duration-300;
+    }
+    
+    .hermes-message-user {
+        @apply bg-hermes-accent text-white rounded-2xl rounded-br-sm px-4 py-3;
+    }
+    
+    .hermes-message-bot {
+        @apply bg-hermes-card border border-hermes-border text-hermes-text rounded-2xl rounded-bl-sm px-4 py-3;
+    }
+    
+    .hermes-badge {
+        @apply inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-medium;
+    }
+    
+    .no-scrollbar::-webkit-scrollbar {
+        display: none;
+    }
+    
+    .no-scrollbar {
+        -ms-overflow-style: none;
+        scrollbar-width: none;
+    }
+}
+
+@layer utilities {
+    .text-gradient {
+        @apply bg-gradient-to-r from-hermes-accent to-purple-500 bg-clip-text text-transparent;
+    }
+}
