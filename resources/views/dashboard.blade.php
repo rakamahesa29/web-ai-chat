@@ -225,10 +225,10 @@
 
             <!-- Graph Visualization -->
             <div class="hermes-card p-6">
-                <div class="flex items-center justify-between mb-4">
-                    <h4 class="font-semibold text-hermes-text">Interactive Knowledge Graph</h4>
-                    <div class="flex items-center gap-3">
-                        <select id="graphRoomFilter" class="bg-hermes-surface border border-hermes-border rounded-lg px-3 py-1.5 text-sm text-hermes-text focus:outline-none focus:ring-2 focus:ring-hermes-accent">
+                <div class="lg:flex grid lg:gap-0 gap-4 items-center justify-between mb-4">
+                    <h4 class="font-semibold text-hermes-text w-fit">Interactive Knowledge Graph</h4>
+                    <div class="flex items-center w-fit gap-3">
+                        <select id="graphRoomFilter" class="max-w-[140px] bg-hermes-surface border border-hermes-border rounded-lg px-3 py-1.5 text-sm text-hermes-text focus:outline-none focus:ring-2 focus:ring-hermes-accent">
                             <option value="">All Rooms</option>
                         </select>
                         <button onclick="refreshGraph()" class="p-2 hover:bg-hermes-surface rounded-lg transition-colors">
@@ -295,7 +295,7 @@
                 <h4 class="font-semibold text-hermes-text mb-4">Top Knowledge Nodes</h4>
                 <div class="space-y-3">
                     @foreach($graphStats['top_nodes'] as $nodeName => $frequency)
-                    <div class="flex items-center justify-between">
+                    <div class="flex items-center justify-between md:gap-8 gap-4">
                         <div class="flex items-center gap-3">
                             <div class="w-2 h-2 rounded-full bg-hermes-accent"></div>
                             <span class="text-sm text-hermes-text">{{ ucfirst($nodeName) }}</span>
@@ -316,7 +316,7 @@
 
         <!-- User Behavior Analysis Section -->
         <div class="hermes-card p-6">
-            <div class="flex items-center justify-between mb-4">
+            <div class="lg:flex grid lg:gap-0 gap-4 items-center justify-between mb-4">
                 <div class="flex items-center gap-3">
                     <div class="w-10 h-10 bg-amber-500/10 rounded-xl flex items-center justify-center">
                         <i data-lucide="scan-search" class="w-5 h-5 text-amber-400"></i>

@@ -62,17 +62,18 @@
 
         {{-- === TOP SECTION: Logo + Collapse Toggle === --}}
         <div class="flex items-center px-4 h-14 shrink-0"
-             :class="sidebarCollapsed ? 'justify-center' : 'justify-between'">
+             :class="(sidebarCollapsed && !mobileOpen) ? 'justify-center' : 'justify-between'">
             {{-- Logo --}}
             <a href="{{ request()->user() ? route('dashboard') : url('/') }}" 
-               x-show="!sidebarCollapsed"
+               x-show="!sidebarCollapsed || mobileOpen"
                class="flex items-center gap-3">
                 <img src="{{ asset('img/32x32.png') }}" alt="Omoikane AI" class="w-8 h-8 rounded-lg shrink-0">
                 <span class="sidebar-label text-lg font-bold text-hermes-text">Omoikane AI</span>
             </a>
 
-            {{-- macOS-style collapse toggle --}}
+            {{-- macOS-style collapse toggle (hide on mobile — hamburger handles it) --}}
             <button @click="toggleCollapse()" 
+                    x-show="!isMobile"
                     class="sidebar-collapse-btn"
                     :aria-label="sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'">
                 <i data-lucide="panel-left-close" x-show="!sidebarCollapsed" class="w-4 h-4"></i>
@@ -124,14 +125,14 @@
                 {{-- Theme Toggle --}}
                 <button onclick="toggleTheme()" class="sidebar-link w-[-webkit-fill-available]" title="Toggle theme">
                     <i data-lucide="sun-moon"></i>
-                    <span x-show="!sidebarCollapsed">Theme</span>
+                    <span x-show="!sidebarCollapsed || mobileOpen">Theme</span>
                 </button>
 
                 {{-- Settings Dropdown --}}
                 <div class="relative" x-data="{ open: false }">
                     <button @click="open = !open" class="sidebar-link w-[-webkit-fill-available] !py-2" title="Settings">
                         <i data-lucide="settings"></i>
-                        <span x-show="!sidebarCollapsed">Settings</span>
+                        <span x-show="!sidebarCollapsed || mobileOpen">Settings</span>
                     </button>
                     {{-- Flyout to the right in collapsed mode, pop-up above in expanded mode --}}
                     <div x-show="open" 
@@ -142,7 +143,7 @@
                          x-transition:leave="transition ease-in duration-75"
                          x-transition:leave-start="opacity-100 scale-100"
                          x-transition:leave-end="opacity-0 scale-95"
-                         :class="sidebarCollapsed
+                         :class="(sidebarCollapsed && !mobileOpen)
                              ? 'absolute left-full top-0 ml-3 w-56 py-2 bg-hermes-card border border-hermes-border rounded-xl shadow-2xl z-50'
                              : 'absolute bottom-full left-3 right-3 mb-2 py-2 bg-hermes-card border border-hermes-border rounded-xl shadow-2xl z-50'"
                          x-cloak>
@@ -173,7 +174,7 @@
                         <div class="w-7 h-7 bg-hermes-accent/20 rounded-full flex items-center justify-center shrink-0">
                             <span class="text-xs font-semibold text-hermes-accent">{{ substr(Auth::user()->name, 0, 1) }}</span>
                         </div>
-                        <span x-show="!sidebarCollapsed" class="sidebar-user-info text-sm font-medium text-hermes-text truncate">
+                        <span x-show="!sidebarCollapsed || mobileOpen" class="sidebar-user-info text-sm font-medium text-hermes-text truncate">
                             {{ Auth::user()->name }}
                         </span>
                     </button>
@@ -186,7 +187,7 @@
                          x-transition:leave="transition ease-in duration-75"
                          x-transition:leave-start="opacity-100 scale-100"
                          x-transition:leave-end="opacity-0 scale-95"
-                         :class="sidebarCollapsed w-[-webkit-fill-available]
+                         :class="(sidebarCollapsed && !mobileOpen)
                              ? 'absolute left-full bottom-0 ml-3 w-56 py-2 bg-hermes-card border border-hermes-border rounded-xl shadow-2xl z-50'
                              : 'absolute bottom-full left-3 right-3 mb-2 py-2 bg-hermes-card border border-hermes-border rounded-xl shadow-2xl z-50'"
                          x-cloak>
@@ -214,15 +215,15 @@
                 <div class="space-y-1">
                     <button onclick="toggleTheme()" class="sidebar-link" title="Toggle theme">
                         <i data-lucide="sun-moon"></i>
-                        <span x-show="!sidebarCollapsed">Theme</span>
+                        <span x-show="!sidebarCollapsed || mobileOpen">Theme</span>
                     </button>
                     <a href="{{ route('login') }}" class="sidebar-link">
                         <i data-lucide="log-in"></i>
-                        <span x-show="!sidebarCollapsed">Login</span>
+                        <span x-show="!sidebarCollapsed || mobileOpen">Login</span>
                     </a>
                     <a href="{{ route('register') }}" class="sidebar-link active">
                         <i data-lucide="user-plus"></i>
-                        <span x-show="!sidebarCollapsed">Join Now</span>
+                        <span x-show="!sidebarCollapsed || mobileOpen">Join Now</span>
                     </a>
                 </div>
             @endguest

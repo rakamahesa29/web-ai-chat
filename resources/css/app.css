@@ -18,6 +18,12 @@
         --hermes-danger: 239 68 68;
     }
 
+    span,
+    a,
+    p {
+        word-break: break-all;
+    }
+
     .dark {
         /* Dark mode - existing Hermes dark theme */
         --hermes-bg: 13 13 13;
@@ -217,7 +223,7 @@
     }
     
     .hermes-message-user {
-        @apply bg-hermes-accent text-white rounded-2xl rounded-br-sm px-4 py-3;
+        @apply bg-hermes-accent text-white rounded-2xl rounded-br-sm px-4 py-3 w-full;
     }
     
     .hermes-message-bot {

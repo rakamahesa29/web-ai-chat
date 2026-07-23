@@ -54,7 +54,7 @@
         })();
     </script>
 
-    <div class="flex h-[calc(100vh-56px)] bg-hermes-bg relative overflow-hidden" x-data="{ sidebarOpen: false }">
+    <div class="flex h-[calc(100dvh-0px)] bg-hermes-bg relative overflow-hidden" x-data="{ sidebarOpen: false }">
         
         <!-- Mobile Sidebar Overlay -->
         <div x-show="sidebarOpen" @click="sidebarOpen = false" 
@@ -68,7 +68,7 @@
 
         <!-- SIDEBAR -->
         <aside :class="sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'"
-               class="fixed md:relative w-72 h-full bg-hermes-surface border-r border-hermes-border flex flex-col z-30 transform transition-transform duration-300 ease-in-out">
+               class="fixed md:relative h-[calc(100dvh-0px)] w-72 bg-hermes-surface border-r border-hermes-border flex flex-col z-30 transform transition-transform duration-300 ease-in-out">
             
             <!-- Sidebar Header -->
             <div class="p-4 border-b border-hermes-border">
@@ -126,7 +126,7 @@
         </aside>
 
         <!-- MAIN CHAT AREA -->
-        <div class="flex-1 flex flex-col bg-hermes-bg overflow-hidden w-full">
+        <div class="flex-1 flex flex-col bg-hermes-bg overflow-hidden w-full h-[calc(100dvh-0px)]">
             
             <!-- Chat Header -->
             <header class="px-4 md:px-6 py-3 border-b border-hermes-border bg-hermes-surface flex items-center justify-between gap-4">
@@ -138,7 +138,7 @@
                     
                     <div class="min-w-0">
                         <h1 class="font-semibold text-hermes-text truncate" id="header-room-title">{{ $room->title }}</h1>
-                        <div class="flex items-center gap-2 text-xs text-hermes-muted">
+                        <div class="flex items-center gap-2 text-xs text-hermes-muted mt-2">
                             <span class="hermes-badge bg-hermes-accent/10 text-hermes-accent">
                                 {{ $room->category ?? 'General' }}
                             </span>
@@ -183,7 +183,7 @@
                 @foreach ($messages as $msg)
                     <div class="flex {{ $msg->sender_type == 'user' ? 'justify-end' : 'justify-start' }} message-wrapper" data-id="{{ $msg->id }}">
                         @if ($msg->sender_type == 'user')
-                            <div class="flex flex-col items-end max-w-[85%] md:max-w-[70%]">
+                            <div class="flex flex-col items-end max-w-[90%] md:max-w-[80%]">
                                 <div class="hermes-message-user">
                                     <div class="text-sm whitespace-pre-wrap leading-relaxed">{{ $msg->content }}</div>
                                     @if(!empty($msg->context_code) || !empty($msg->search_context))
@@ -815,7 +815,7 @@
             }
 
             msgDiv.innerHTML = `
-            <div class="flex flex-col items-end max-w-[85%] md:max-w-[70%]">
+            <div class="flex flex-col items-end max-w-[90%] md:max-w-[80%]">
                 <div class="hermes-message-user">
                     <div class="text-sm whitespace-pre-wrap leading-relaxed">${displayContent.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</div>
                     ${badges ? `<div class="flex flex-wrap gap-2 mt-2 pt-2 border-t border-white/20">${badges}</div>` : ''}

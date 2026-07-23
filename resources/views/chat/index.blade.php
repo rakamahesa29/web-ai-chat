@@ -27,10 +27,10 @@
     @endif
 
     <div class="w-full mx-auto">
-        <div class="flex flex-col lg:flex-row gap-8">
+        <div class="flex flex-col xl:flex-row gap-8">
 
             <!-- Sidebar -->
-            <aside class="w-full lg:w-72 flex flex-col space-y-6 shrink-0">
+            <aside class="w-full xl:w-72 xl:order-1 order-2 flex flex-col space-y-6 shrink-0">
                 <!-- New Chat Button -->
                 <div class="hermes-card p-4">
                     <a href="{{ route('chat.create') }}"
@@ -90,7 +90,7 @@
             </aside>
 
             <!-- Main Content -->
-            <main class="flex-1 pb-8">
+            <main class="flex-1 pb-8 xl:order-2 order-1">
                 <!-- Header -->
                 <div class="mb-10">
                     <h1 class="text-3xl md:text-4xl font-bold text-hermes-text tracking-tight">

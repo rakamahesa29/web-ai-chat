@@ -25,7 +25,7 @@
     </div>
 
     <!-- Features Grid -->
-    <div id="features" class="mt-24 md:mt-32 grid grid-cols-1 md:grid-cols-3 gap-6">
+    <div id="features" class="mt-24 md:mt-32 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         <div class="hermes-card p-6 hover:border-blue-500/50 transition-all group">
             <div class="w-12 h-12 bg-blue-500/10 text-blue-400 rounded-xl flex items-center justify-center mb-5 group-hover:bg-blue-500/20 transition-colors">
                 <i data-lucide="rocket" class="w-6 h-6"></i>
@@ -52,7 +52,7 @@
     </div>
 
     <!-- Stats Section -->
-    <div class="mt-24 grid grid-cols-2 md:grid-cols-4 gap-4">
+    <div class="mt-24 grid grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <div class="hermes-card p-6 text-center">
             <div class="text-3xl font-bold text-hermes-accent mb-1">100%</div>
             <div class="text-sm text-hermes-muted">Private & Secure</div>

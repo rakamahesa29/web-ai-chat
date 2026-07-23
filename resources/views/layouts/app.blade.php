@@ -42,11 +42,11 @@
         @include('layouts.navigation')
 
         <!-- Page Content -->
-        <main 
+            <main 
             :class="mainClasses()"
-            class="flex-1 ml-0 md:ml-[260px] transition-all duration-300"
+            class="flex-1 ml-0 transition-all duration-300"
         >
-            <div class="@if(!request()->routeIs('chat.show')) w-full max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 @endif h-full">
+            <div class="@if(!request()->routeIs('chat.show')) w-full max-w-[1600px] px-4 sm:px-6 lg:px-8 @endif h-full">
                 @yield('content')
             </div>
         </main>
@@ -89,10 +89,10 @@
                 mainClasses() {
                     const base = 'flex-1 transition-all duration-300';
                     if (this.isMobile) {
-                        return `${base} ml-0 pt-12`;
+                        return `${base} ml-0 pt-20`;
                     }
                     const isChatShow = {{ request()->routeIs('chat.show') ? 'true' : 'false' }};
-                    const topPad = isChatShow ? ' pt-4' : ' pt-6';
+                    const topPad = isChatShow ? ' pt-0' : ' pt-6';
                     const bottomPad = isChatShow ? '' : ' pb-6';
                     const pad = topPad + bottomPad;
                     if (this.sidebarCollapsed) {
