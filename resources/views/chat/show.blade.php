@@ -142,6 +142,10 @@
                             <span class="hermes-badge bg-hermes-accent/10 text-hermes-accent">
                                 {{ $room->category ?? 'General' }}
                             </span>
+                            <button onclick="openSkillsPanel()" id="skills-badge" class="hermes-badge bg-hermes-hover text-hermes-muted hover:bg-hermes-accent/10 hover:text-hermes-accent transition cursor-pointer">
+                                <i data-lucide="book-open" class="w-3 h-3"></i>
+                                <span id="skills-count">{{ $room->skills()->where('is_active', true)->count() }} skills</span>
+                            </button>
                             <span id="memory-cycle-indicator" class="hermes-badge bg-hermes-hover text-hermes-muted">
                                 <i data-lucide="layers" class="w-3 h-3"></i>
                                 <span id="memory-cycle-count">0/10</span>
@@ -253,7 +257,6 @@
                     <input type="hidden" name="context_code" id="context_code_input" value="">
                     <input type="hidden" name="use_web_search" id="use_web_search_input" value="0">
                     <input type="hidden" name="persona_override" id="persona_override_input" value="">
-                    <input type="hidden" name="folder_path" id="folder_path_input" value="">
                     <input type="hidden" name="deepseek_pro" id="deepseek_pro_input" value="0">
                     <input type="file" id="fileUploadInput" class="hidden" accept=".pdf,.doc,.docx,.txt,.php,.js,.py,.html,.css,.json,.xml,.csv,.md" onchange="handleFileUpload(event)">
 
@@ -268,16 +271,6 @@
                         </div>
                     </div>
 
-                    <!-- Folder Path Indicator -->
-                    <div id="folder-indicator" class="hidden mb-2">
-                        <div class="inline-flex items-center gap-2 px-3 py-1.5 bg-amber-500/10 text-amber-400 rounded-lg text-xs">
-                            <i data-lucide="folder-open" class="w-3.5 h-3.5"></i>
-                            <span id="folder-path-text" class="max-w-[300px] truncate">Folder attached</span>
-                            <button type="button" onclick="clearFolderPath()" class="hover:text-hermes-danger ml-1">
-                                <i data-lucide="x" class="w-3.5 h-3.5"></i>
-                            </button>
-                        </div>
-                    </div>
 
                     <div class="relative flex items-end gap-2 bg-hermes-card border border-hermes-border rounded-xl p-2 focus-within:border-hermes-accent transition-colors">
                         <!-- Action Buttons -->
@@ -297,9 +290,9 @@
                                         <i data-lucide="file-up" class="w-4 h-4"></i>
                                         <span>Upload File</span>
                                     </button>
-                                    <button type="button" @click="open = false; openFolderModal()" class="hermes-dropdown-item text-start w-full">
-                                        <i data-lucide="folder-open" class="w-4 h-4"></i>
-                                        <span>Folder Path (JIT RAG)</span>
+                                    <button type="button" @click="open = false; openSkillsPanel()" class="hermes-dropdown-item text-start w-full">
+                                        <i data-lucide="book-open" class="w-4 h-4"></i>
+                                        <span>Room Skills</span>
                                     </button>
                                 </div>
                             </div>
@@ -565,11 +558,10 @@
             const messageValue = hiddenInput.value.trim();
             const codeValue = contextInput.value.trim();
             const isSearchActive = isWebSearchEnabled;
-            const folderPathValue = document.getElementById('folder_path_input').value.trim();
 
             if (!messageValue && !codeValue) return;
 
-            appendUserMessage(messageValue, codeValue !== '', isSearchActive, folderPathValue !== '');
+            appendUserMessage(messageValue, codeValue !== '', isSearchActive);
             
             editor.innerHTML = '';
             hiddenInput.value = '';
@@ -591,14 +583,7 @@
             formData.set('use_web_search', isSearchActive ? '1' : '0');
             formData.set('deepseek_pro', isDeepseekPro ? '1' : '0');
 
-            // Prepend folder path to message so JIT RAG detects it
-            if (folderPathValue) {
-                const msgWithFolder = folderPathValue + ' ' + formData.get('message');
-                formData.set('message', msgWithFolder);
-            }
-
             clearContextCode();
-            clearFolderPath();
             
             if (isWebSearchEnabled) toggleWebSearch();
 
@@ -797,7 +782,7 @@
             chatContainer.scrollTo({ top: chatContainer.scrollHeight, behavior: 'smooth' });
         }
 
-        function appendUserMessage(content, hasCode = false, usedWebSearch = false, hasFolder = false) {
+        function appendUserMessage(content, hasCode = false, usedWebSearch = false) {
             const msgDiv = document.createElement('div');
             msgDiv.className = `flex justify-end message-wrapper`;
             
@@ -809,9 +794,6 @@
             }
             if (usedWebSearch) {
                 badges += `<span class="hermes-badge bg-emerald-500/30 text-emerald-200"><i data-lucide="globe" class="w-3 h-3"></i> Web</span>`;
-            }
-            if (hasFolder) {
-                badges += `<span class="hermes-badge bg-amber-500/30 text-amber-200"><i data-lucide="folder-open" class="w-3 h-3"></i> JIT RAG</span>`;
             }
 
             msgDiv.innerHTML = `
@@ -884,74 +866,6 @@
             if (attachmentIndicator) attachmentIndicator.classList.add('hidden');
         }
 
-        let storedFolderPath = '';
-
-        async function openFolderModal() {
-            const { value: folderPath } = await Swal.fire({
-                html: `
-                    <div class="text-left">
-                        <div class="flex items-center gap-3 border-b border-hermes-border pb-4 mb-4">
-                            <div class="p-2 bg-amber-500/10 rounded-xl">
-                                <i data-lucide="folder-open" class="w-6 h-6 text-amber-400"></i>
-                            </div>
-                            <div>
-                                <h2 class="text-lg font-bold text-hermes-text">Add Folder Path</h2>
-                                <p class="text-xs text-hermes-muted">JIT RAG will scan & embed relevant files on-the-fly</p>
-                            </div>
-                        </div>
-                        <p class="text-sm text-hermes-muted mb-3">Enter the absolute path to a local folder containing <strong>.txt</strong>, <strong>.md</strong>, or <strong>.pdf</strong> files.</p>
-                        <input type="text" id="folder-path-input-modal" 
-                            class="w-full p-3 bg-hermes-surface border border-hermes-border rounded-xl text-sm font-mono text-hermes-text focus:ring-2 focus:ring-amber-400 focus:border-transparent outline-none transition-all placeholder-hermes-muted" 
-                            placeholder="/Users/you/Documents/folder-name"
-                            value="${storedFolderPath}">
-                        <div class="mt-3 p-3 bg-hermes-surface/50 rounded-lg border border-hermes-border">
-                            <p class="text-xs text-hermes-muted"><strong>Supported paths:</strong></p>
-                            <ul class="text-xs text-hermes-muted mt-1 space-y-0.5 list-disc list-inside">
-                                <li>~/Documents/my-research</li>
-                                <li>/Users/name/Desktop/project</li>
-                                <li>/Volumes/ExternalDrive/notes</li>
-                            </ul>
-                        </div>
-                    </div>
-                `,
-                showCancelButton: true,
-                confirmButtonText: 'Attach Folder',
-                cancelButtonText: 'Cancel',
-                width: '500px',
-                customClass: { popup: 'my-swal-popup', confirmButton: '!bg-amber-500 hover:!bg-amber-600' },
-                didOpen: () => {
-                    const input = document.getElementById('folder-path-input-modal');
-                    if (input) input.focus();
-                    lucide.createIcons();
-                },
-                preConfirm: () => {
-                    const input = document.getElementById('folder-path-input-modal');
-                    const val = input ? input.value.trim() : '';
-                    if (!val) {
-                        Swal.showValidationMessage('Please enter a folder path');
-                        return false;
-                    }
-                    if (!val.startsWith('/') && !val.startsWith('~')) {
-                        Swal.showValidationMessage('Path must be absolute (start with / or ~/)');
-                        return false;
-                    }
-                    return val;
-                }
-            });
-
-            if (folderPath) {
-                storedFolderPath = folderPath;
-                document.getElementById('folder_path_input').value = folderPath;
-                document.getElementById('folder-indicator').classList.remove('hidden');
-                document.getElementById('folder-path-text').textContent = folderPath;
-            }
-        }
-
-        function clearFolderPath() {
-            storedFolderPath = '';
-            document.getElementById('folder_path_input').value = '';
-            document.getElementById('folder-indicator').classList.add('hidden');
-        }
 
         async function handleFileUpload(event) {
             const file = event.target.files[0];
@@ -1379,6 +1293,307 @@
             // Retry with web search
             retryMessage('web');
         }
+
+        // =============================================
+        // ROOM SKILLS MANAGEMENT
+        // =============================================
+        const SKILLS_API_BASE = `/chat/{{ $room->id }}/skills`;
+        let roomSkills = [];
+
+        async function loadSkills() {
+            try {
+                const res = await fetch(SKILLS_API_BASE, {
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' }
+                });
+                const data = await res.json();
+                if (data.status === 'success') {
+                    roomSkills = data.skills;
+                    updateSkillsBadge();
+                }
+            } catch (e) {
+                console.error('Failed to load skills:', e);
+            }
+        }
+
+        function updateSkillsBadge() {
+            const activeCount = roomSkills.filter(s => s.is_active).length;
+            const badge = document.getElementById('skills-count');
+            if (badge) badge.textContent = `${activeCount} skill${activeCount !== 1 ? 's' : ''}`;
+        }
+
+        async function openSkillsPanel() {
+            await loadSkills();
+
+            const skillListHtml = roomSkills.length > 0 
+                ? roomSkills.map(skill => `
+                    <div class="flex items-center justify-between p-3 bg-hermes-surface rounded-lg border border-hermes-border" id="skill-item-${skill.id}">
+                        <div class="flex items-center gap-3 min-w-0 flex-1">
+                            <button onclick="toggleSkill(${skill.id})" class="shrink-0 w-8 h-5 rounded-full transition-colors relative ${skill.is_active ? 'bg-hermes-accent' : 'bg-hermes-border'}" title="${skill.is_active ? 'Disable' : 'Enable'}">
+                                <span class="absolute top-0.5 ${skill.is_active ? 'right-0.5' : 'left-0.5'} w-4 h-4 bg-white rounded-full shadow transition-all"></span>
+                            </button>
+                            <div class="min-w-0">
+                                <p class="text-sm font-medium text-hermes-text truncate">${skill.title}</p>
+                                <p class="text-xs text-hermes-muted">${skill.source_type === 'file_upload' ? '📄 ' + (skill.original_filename || 'File') : '✏️ Manual'}</p>
+                            </div>
+                        </div>
+                        <button onclick="deleteSkill(${skill.id})" class="shrink-0 p-1.5 text-hermes-muted hover:text-hermes-danger hover:bg-hermes-danger/10 rounded-lg transition" title="Remove">
+                            <i data-lucide="trash-2" class="w-4 h-4"></i>
+                        </button>
+                    </div>
+                `).join('')
+                : '<p class="text-sm text-hermes-muted text-center py-4">No skills added yet. Add one below.</p>';
+
+            const { value: action } = await Swal.fire({
+                html: `
+                    <div class="text-left">
+                        <div class="flex items-center gap-3 border-b border-hermes-border pb-4 mb-4">
+                            <div class="p-2 bg-hermes-accent/10 rounded-xl">
+                                <i data-lucide="book-open" class="w-6 h-6 text-hermes-accent"></i>
+                            </div>
+                            <div>
+                                <h2 class="text-lg font-bold text-hermes-text">Room Skills</h2>
+                                <p class="text-xs text-hermes-muted">Rules & instructions specific to this room</p>
+                            </div>
+                        </div>
+                        <div class="space-y-2 max-h-[250px] overflow-y-auto mb-4" id="skills-list-container">
+                            ${skillListHtml}
+                        </div>
+                        <div class="border-t border-hermes-border pt-4">
+                            <p class="text-xs font-semibold text-hermes-muted uppercase tracking-wider mb-3">Add New Skill</p>
+                            <div class="flex gap-2">
+                                <button type="button" id="btn-add-skill-manual" class="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 border border-hermes-border rounded-lg text-sm text-hermes-text hover:border-hermes-accent hover:bg-hermes-accent/5 transition">
+                                    <i data-lucide="edit-3" class="w-4 h-4"></i>
+                                    Write Manually
+                                </button>
+                                <button type="button" id="btn-add-skill-file" class="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 border border-hermes-border rounded-lg text-sm text-hermes-text hover:border-hermes-accent hover:bg-hermes-accent/5 transition">
+                                    <i data-lucide="file-up" class="w-4 h-4"></i>
+                                    Upload .md / .txt
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                `,
+                showConfirmButton: false,
+                showCloseButton: true,
+                width: '550px',
+                customClass: { popup: 'my-swal-popup' },
+                didOpen: () => {
+                    lucide.createIcons();
+                    document.getElementById('btn-add-skill-manual').addEventListener('click', () => {
+                        Swal.close();
+                        openAddSkillManual();
+                    });
+                    document.getElementById('btn-add-skill-file').addEventListener('click', () => {
+                        Swal.close();
+                        openAddSkillFile();
+                    });
+                }
+            });
+        }
+
+        async function openAddSkillManual() {
+            const { value: formData } = await Swal.fire({
+                html: `
+                    <div class="text-left">
+                        <div class="flex items-center gap-3 border-b border-hermes-border pb-4 mb-4">
+                            <div class="p-2 bg-hermes-accent/10 rounded-xl">
+                                <i data-lucide="edit-3" class="w-6 h-6 text-hermes-accent"></i>
+                            </div>
+                            <h2 class="text-lg font-bold text-hermes-text">Add Skill</h2>
+                        </div>
+                        <div class="space-y-4">
+                            <div>
+                                <label class="block text-xs font-semibold text-hermes-muted uppercase tracking-wider mb-1.5">Skill Title</label>
+                                <input type="text" id="skill-title-input" 
+                                    class="w-full p-3 bg-hermes-surface border border-hermes-border rounded-xl text-sm text-hermes-text focus:ring-2 focus:ring-hermes-accent focus:border-transparent outline-none transition placeholder-hermes-muted"
+                                    placeholder="e.g. Laravel Coding Standards">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-hermes-muted uppercase tracking-wider mb-1.5">Content (Markdown supported)</label>
+                                <textarea id="skill-content-input" rows="10"
+                                    class="w-full p-3 bg-hermes-surface border border-hermes-border rounded-xl text-sm font-mono text-hermes-text focus:ring-2 focus:ring-hermes-accent focus:border-transparent outline-none resize-none transition placeholder-hermes-muted"
+                                    placeholder="Write your skill/rules in Markdown format..."></textarea>
+                            </div>
+                        </div>
+                    </div>
+                `,
+                showCancelButton: true,
+                confirmButtonText: 'Add Skill',
+                cancelButtonText: 'Cancel',
+                width: '600px',
+                customClass: { popup: 'my-swal-popup' },
+                didOpen: () => {
+                    lucide.createIcons();
+                    document.getElementById('skill-title-input').focus();
+                },
+                preConfirm: () => {
+                    const title = document.getElementById('skill-title-input').value.trim();
+                    const content = document.getElementById('skill-content-input').value.trim();
+                    if (!title) { Swal.showValidationMessage('Title is required'); return false; }
+                    if (!content) { Swal.showValidationMessage('Content is required'); return false; }
+                    return { title, content };
+                }
+            });
+
+            if (formData) {
+                await saveSkill(formData.title, formData.content);
+            }
+        }
+
+        async function openAddSkillFile() {
+            const { value: formData } = await Swal.fire({
+                html: `
+                    <div class="text-left">
+                        <div class="flex items-center gap-3 border-b border-hermes-border pb-4 mb-4">
+                            <div class="p-2 bg-hermes-accent/10 rounded-xl">
+                                <i data-lucide="file-up" class="w-6 h-6 text-hermes-accent"></i>
+                            </div>
+                            <h2 class="text-lg font-bold text-hermes-text">Upload Skill File</h2>
+                        </div>
+                        <div class="space-y-4">
+                            <div>
+                                <label class="block text-xs font-semibold text-hermes-muted uppercase tracking-wider mb-1.5">Skill Title</label>
+                                <input type="text" id="skill-file-title-input" 
+                                    class="w-full p-3 bg-hermes-surface border border-hermes-border rounded-xl text-sm text-hermes-text focus:ring-2 focus:ring-hermes-accent focus:border-transparent outline-none transition placeholder-hermes-muted"
+                                    placeholder="e.g. Developer Guidelines">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-hermes-muted uppercase tracking-wider mb-1.5">File (.md or .txt)</label>
+                                <input type="file" id="skill-file-input" accept=".md,.txt"
+                                    class="w-full p-3 bg-hermes-surface border border-hermes-border rounded-xl text-sm text-hermes-text file:mr-4 file:py-1 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-hermes-accent/10 file:text-hermes-accent hover:file:bg-hermes-accent/20 cursor-pointer">
+                                <p class="text-xs text-hermes-muted mt-1.5">Max 2MB. Supported: .md, .txt</p>
+                            </div>
+                        </div>
+                    </div>
+                `,
+                showCancelButton: true,
+                confirmButtonText: 'Upload & Add',
+                cancelButtonText: 'Cancel',
+                width: '500px',
+                customClass: { popup: 'my-swal-popup' },
+                didOpen: () => {
+                    lucide.createIcons();
+                    document.getElementById('skill-file-title-input').focus();
+                },
+                preConfirm: () => {
+                    const title = document.getElementById('skill-file-title-input').value.trim();
+                    const fileInput = document.getElementById('skill-file-input');
+                    if (!title) { Swal.showValidationMessage('Title is required'); return false; }
+                    if (!fileInput.files[0]) { Swal.showValidationMessage('Please select a file'); return false; }
+                    return { title, file: fileInput.files[0] };
+                }
+            });
+
+            if (formData) {
+                await saveSkillFile(formData.title, formData.file);
+            }
+        }
+
+        async function saveSkill(title, content) {
+            try {
+                const res = await fetch(SKILLS_API_BASE, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
+                    body: JSON.stringify({ title, content })
+                });
+                const data = await res.json();
+                if (res.ok && data.status === 'success') {
+                    roomSkills.push(data.skill);
+                    updateSkillsBadge();
+                    Swal.fire({ icon: 'success', title: 'Skill Added', text: data.message, timer: 1500, showConfirmButton: false, customClass: { popup: 'my-swal-popup' } });
+                } else {
+                    throw new Error(data.error || 'Failed to save skill');
+                }
+            } catch (e) {
+                Swal.fire({ icon: 'error', title: 'Error', text: e.message, customClass: { popup: 'my-swal-popup' } });
+            }
+        }
+
+        async function saveSkillFile(title, file) {
+            const formData = new FormData();
+            formData.append('title', title);
+            formData.append('file', file);
+            formData.append('_token', '{{ csrf_token() }}');
+
+            try {
+                const res = await fetch(SKILLS_API_BASE, {
+                    method: 'POST',
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                    body: formData
+                });
+                const data = await res.json();
+                if (res.ok && data.status === 'success') {
+                    roomSkills.push(data.skill);
+                    updateSkillsBadge();
+                    Swal.fire({ icon: 'success', title: 'Skill Added', text: data.message, timer: 1500, showConfirmButton: false, customClass: { popup: 'my-swal-popup' } });
+                } else {
+                    throw new Error(data.error || 'Failed to upload skill');
+                }
+            } catch (e) {
+                Swal.fire({ icon: 'error', title: 'Error', text: e.message, customClass: { popup: 'my-swal-popup' } });
+            }
+        }
+
+        async function toggleSkill(skillId) {
+            try {
+                const res = await fetch(`${SKILLS_API_BASE}/${skillId}/toggle`, {
+                    method: 'PATCH',
+                    headers: {
+                        'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                        'X-Requested-With': 'XMLHttpRequest',
+                    }
+                });
+                const data = await res.json();
+                if (res.ok && data.status === 'success') {
+                    const skill = roomSkills.find(s => s.id === skillId);
+                    if (skill) skill.is_active = data.is_active;
+                    updateSkillsBadge();
+                    openSkillsPanel();
+                }
+            } catch (e) {
+                console.error('Toggle skill error:', e);
+            }
+        }
+
+        async function deleteSkill(skillId) {
+            const confirm = await Swal.fire({
+                title: 'Remove this skill?',
+                text: 'This cannot be undone.',
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#ef4444',
+                confirmButtonText: 'Remove',
+                customClass: { popup: 'my-swal-popup' }
+            });
+
+            if (!confirm.isConfirmed) return;
+
+            try {
+                const res = await fetch(`${SKILLS_API_BASE}/${skillId}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                        'X-Requested-With': 'XMLHttpRequest',
+                    }
+                });
+                const data = await res.json();
+                if (res.ok && data.status === 'success') {
+                    roomSkills = roomSkills.filter(s => s.id !== skillId);
+                    updateSkillsBadge();
+                    const el = document.getElementById(`skill-item-${skillId}`);
+                    if (el) el.remove();
+                }
+            } catch (e) {
+                console.error('Delete skill error:', e);
+            }
+        }
+
+        // Load skills on page init
+        document.addEventListener('DOMContentLoaded', () => loadSkills());
 
         // Memory cycle indicator
         document.addEventListener('DOMContentLoaded', () => {

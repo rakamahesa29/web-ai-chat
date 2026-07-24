@@ -57,6 +57,14 @@ class Room extends Model
     }
 
     /**
+     * Get the skills attached to this room.
+     */
+    public function skills(): HasMany
+    {
+        return $this->hasMany(RoomSkill::class);
+    }
+
+    /**
      * Get the user that owns the room.
      */
     public function user(): BelongsTo

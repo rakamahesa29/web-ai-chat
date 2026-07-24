@@ -2,6 +2,7 @@
     use App\Http\Controllers\ProfileController;
     use App\Http\Controllers\DashboardController;
     use App\Http\Controllers\ChatController;
+    use App\Http\Controllers\RoomSkillController;
     use App\Http\Controllers\BrainController;
     use Illuminate\Support\Facades\Route;
 
@@ -44,6 +45,12 @@
             Route::delete('/{room}', [ChatController::class, 'destroy'])->name('chat.destroy');
 
            Route::post('/room/{room}/context', [ChatController::class, 'updateContext'])->name('chat.updateContext');
+
+            // Room Skills
+            Route::get('/{room}/skills', [RoomSkillController::class, 'index'])->name('chat.skills.index');
+            Route::post('/{room}/skills', [RoomSkillController::class, 'store'])->name('chat.skills.store');
+            Route::patch('/{room}/skills/{skill}/toggle', [RoomSkillController::class, 'toggle'])->name('chat.skills.toggle');
+            Route::delete('/{room}/skills/{skill}', [RoomSkillController::class, 'destroy'])->name('chat.skills.destroy');
         });
 
         Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');

@@ -46,7 +46,7 @@
             :class="mainClasses()"
             class="flex-1 ml-0 transition-all duration-300"
         >
-            <div class="@if(!request()->routeIs('chat.show')) w-full max-w-[1600px] px-4 sm:px-6 lg:px-8 @endif h-full">
+            <div class="@if(!request()->routeIs('chat.show')) w-full max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 @endif h-full">
                 @yield('content')
             </div>
         </main>

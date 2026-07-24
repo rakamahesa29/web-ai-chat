@@ -492,6 +492,15 @@ You are answering based on the provided CONTEXT above. Follow these rules STRICT
             ];
         }
 
+        // Inject Room Skills (room-specific instructions/rules)
+        $skillsContext = $this->buildRoomSkillsContext($room);
+        if (!empty($skillsContext)) {
+            $payload[] = [
+                'role' => 'system',
+                'content' => $skillsContext,
+            ];
+        }
+
         // 5. BUILD HISTORY: Include as much context as the model can handle.
         // Agent mode needs full conversation history — no arbitrary message/chars limits.
         $isCloudModel = in_array($modelName, ['deepseek','ollama_cloud']);
@@ -613,6 +622,12 @@ You are answering based on the provided CONTEXT above. Follow these rules STRICT
                 ];
             }
         }
+
+        // Inject Room Skills
+        $skillsContext = $this->buildRoomSkillsContext($room);
+        if (!empty($skillsContext)) {
+            $payload[] = ['role' => 'system', 'content' => $skillsContext];
+        }
         
         // Build history payload — same generous limits as main build
         $isCloudModel = in_array($modelName, ['deepseek', 'ollama_cloud']);
@@ -697,6 +712,12 @@ You are answering based on the provided CONTEXT above. Follow these rules STRICT
         $graphContext = $this->tryKnowledgeGraphContext($room->id, $latestUserMsg);
         if ($graphContext['success'] && !empty($graphContext['context'])) {
             $payload[] = ['role' => 'system', 'content' => $graphContext['context']];
+        }
+
+        // Inject Room Skills
+        $skillsContext = $this->buildRoomSkillsContext($room);
+        if (!empty($skillsContext)) {
+            $payload[] = ['role' => 'system', 'content' => $skillsContext];
         }
 
         // Build history payload — same generous limits
@@ -1054,6 +1075,34 @@ You are answering based on the provided CONTEXT above. Follow these rules STRICT
 
         $context .= "=================================\n";
         $context .= "Gunakan data di atas sebagai baseline untuk mengukur perkembangan mahasiswa.\n";
+
+        return $context;
+    }
+
+    /**
+     * Build context string from active room skills.
+     * These are room-specific rules/instructions that take priority over general persona.
+     */
+    private function buildRoomSkillsContext(Room $room): string
+    {
+        $skills = $room->skills()->where('is_active', true)->get();
+
+        if ($skills->isEmpty()) {
+            return '';
+        }
+
+        $context = "=== ROOM SKILLS (Room-Specific Rules & Instructions) ===\n";
+        $context .= "The following skills/rules have been explicitly assigned to this conversation. ";
+        $context .= "You MUST follow these instructions with HIGHER priority than general persona rules.\n\n";
+
+        foreach ($skills as $skill) {
+            $context .= "--- [SKILL: {$skill->title}] ---\n";
+            $context .= trim($skill->content) . "\n\n";
+        }
+
+        $context .= "=================================\n";
+
+        \Log::info("PromptBuilder: Injected {$skills->count()} room skill(s) for room {$room->id}");
 
         return $context;
     }

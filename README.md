@@ -1,10 +1,10 @@
 # Omoikane AI Chat
 
-A full-featured, self-hosted AI chat application built with Laravel 12 and a dark-themed UI (codename **Omoikane**). It supports multiple LLM providers, Retrieval-Augmented Generation (RAG) with Just-In-Time local folder indexing, a Knowledge Graph memory layer, intelligent query classification, DeepSeek Pro reasoning mode, and a dedicated academic/thesis assistant mode.
+A full-featured, self-hosted AI chat application built with Laravel 13 and a dark-themed UI (codename **Omoikane**). It supports multiple LLM providers, Retrieval-Augmented Generation (RAG) with Just-In-Time local folder indexing, a Knowledge Graph memory layer, intelligent query classification, DeepSeek Pro reasoning mode, room-scoped skills/rules, and a dedicated academic/thesis assistant mode.
 
 ## Tech Stack
 
-- **Backend:** PHP 8.2+ / Laravel 12
+- **Backend:** PHP 8.3+ / Laravel 13
 - **Frontend:** Blade + Tailwind CSS + Alpine.js
 - **Icons:** Lucide Icons (CDN)
 - **Database:** MySQL 8
@@ -40,6 +40,15 @@ Six built-in persona modes that modify the AI's tone and behavior per chat room:
 - **Chapter-Level Scoring:** Per-bab scores (Bab 1-5 + coherence), strengths, weaknesses, and recommendations are persisted per room.
 - **Thesis Progress Record:** Historical evaluation data is injected into the AI's context automatically, giving it long-term memory of the student's thesis progress across conversations.
 - **Dedicated Brain Documents:** Knowledge base entries covering paraphrasing strategies, Turnitin algorithm deconstruction, research gap validation, literature review architecture, methodology protocols, thesis coherence ("benang merah"), critical analysis frameworks, and defense simulation.
+
+### Room Skills
+Per-room instructions and rules that are injected into the AI prompt with **higher priority** than general persona settings. Skills let you customize AI behavior for specific conversations without modifying global config.
+
+- **Add skills via file upload** (.md or .txt) or **write directly** in the built-in editor.
+- **Toggle on/off** per skill — disabled skills are excluded from the prompt.
+- **Unlimited skills per room** — each is injected as a dedicated system instruction block.
+- Skills persist across messages and are automatically loaded on every interaction.
+- Accessed via the skills badge in the chat header or the "+" attachment menu.
 
 ### Knowledge Base (Brain)
 - CRUD management for knowledge documents with a rich text editor (CKEditor 5).
@@ -110,6 +119,7 @@ Every user message is classified before processing:
 
 ### Chat UX
 - **Conversation sidebar** with room list, new chat creation, and delete.
+- **Room Skills panel:** Add, toggle, and remove per-room skills directly from the chat header.
 - **File attachments:** Paste code or upload files (PDF, DOCX, TXT, PHP, JS, Python, HTML, CSS, JSON, XML, CSV, MD).
 - **Message actions:** Thumbs up/down rating, delete, continue generation.
 - **DeepSeek Pro toggle:** In-chat switch to enable reasoning/thinking mode on DeepSeek provider.
@@ -124,10 +134,12 @@ Every user message is classified before processing:
 app/
 ├── Http/Controllers/
 │   ├── ChatController.php         # Chat CRUD, send, retry, streaming
+│   ├── RoomSkillController.php    # Room skills CRUD & toggle
 │   ├── DashboardController.php    # Analytics, provider toggles, analysis
 │   └── BrainController.php        # Knowledge base CRUD
 ├── Models/
 │   ├── Room.php                   # Chat rooms with persona & category
+│   ├── RoomSkill.php              # Per-room skills/rules/instructions
 │   ├── Message.php                # Chat messages with tokens & ratings
 │   ├── Brain.php                  # Knowledge documents with tags & file_hash
 │   ├── BrainChunk.php             # RAG chunks with embeddings
@@ -171,9 +183,9 @@ app/
 ## Setup
 
 ### Prerequisites
-- PHP 8.2+
+- PHP 8.3+
 - Composer
-- MySQL 8
+- MySQL 8.4
 - Node.js & npm
 - Ollama (for local LLM and embeddings)
 

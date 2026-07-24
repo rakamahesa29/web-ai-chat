@@ -47,7 +47,7 @@
                                         <i data-lucide="file-text" class="w-3 h-3"></i> PDF
                                     </span>
                                 @else
-                                    <span class="hermes-badge bg-blue-500/10 text-blue-400 border border-blue-500/30">
+                                    <span class="hermes-badge bg-blue-500/10 text-blue-400 border border-blue-500/30 min-w-[70px]">
                                         <i data-lucide="type" class="w-3 h-3"></i> Text
                                     </span>
                                 @endif
