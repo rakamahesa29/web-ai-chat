@@ -1,0 +1,7 @@
+services:
+  laravel.test:
+    environment:
+      SUPERVISOR_PHP_COMMAND: '/usr/bin/php -d opcache.optimization_level=0 -d variables_order=EGPCS /var/www/html/artisan serve --host=0.0.0.0 --port=80'
+  queue:
+    environment:
+      SUPERVISOR_PHP_COMMAND: '/usr/bin/php -d opcache.optimization_level=0 -d variables_order=EGPCS /var/www/html/artisan queue:work --tries=3'

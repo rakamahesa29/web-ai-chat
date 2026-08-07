@@ -1,0 +1,238 @@
+@extends('layouts.app')
+
+@section('content')
+<div class="space-y-6">
+    <!-- Header -->
+    <div class="flex items-center gap-4">
+        <a href="{{ route('brains.index') }}" class="hermes-btn-icon border border-hermes-border">
+            <i data-lucide="arrow-left" class="w-5 h-5"></i>
+        </a>
+        <div>
+            <h1 class="text-2xl font-bold text-hermes-text">Add Knowledge</h1>
+            <p class="text-hermes-muted text-sm">Inject new information into the AI Brain.</p>
+        </div>
+    </div>
+
+    <!-- Errors -->
+    @if($errors->any())
+        <div class="bg-hermes-danger/10 text-hermes-danger p-4 rounded-xl border border-hermes-danger/30 text-sm">
+            <ul class="list-disc list-inside space-y-1">
+                @foreach($errors->all() as $error)
+                    <li>{{ $error }}</li>
+                @endforeach
+            </ul>
+        </div>
+    @endif
+
+    <!-- Form -->
+    <div class="hermes-card p-6 md:p-8">
+        <form action="{{ route('brains.store') }}" method="POST" enctype="multipart/form-data" class="space-y-6" x-data="{ type: 'text' }">
+            @csrf
+
+            <div>
+                <label class="block text-xs font-semibold text-hermes-muted uppercase tracking-wider mb-2">Knowledge Title</label>
+                <input type="text" name="title" value="{{ old('title') }}" required
+                    placeholder="e.g. Laravel 12 Updates"
+                    class="hermes-input">
+            </div>
+
+            <div>
+                <label class="block text-xs font-semibold text-hermes-muted uppercase tracking-wider mb-3">Target Persona (Tags)</label>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <label class="flex items-center gap-3 p-3 hermes-card cursor-pointer hover:bg-hermes-hover transition">
+                        <input type="checkbox" name="tag[]" value="general" class="w-4 h-4 rounded bg-hermes-surface border-hermes-border text-hermes-accent focus:ring-hermes-accent focus:ring-offset-hermes-bg">
+                        <span class="text-sm font-medium text-hermes-text">General (All Personas)</span>
+                    </label>
+                    <label class="flex items-center gap-3 p-3 hermes-card cursor-pointer hover:bg-hermes-hover transition">
+                        <input type="checkbox" name="tag[]" value="architect" class="w-4 h-4 rounded bg-hermes-surface border-hermes-border text-hermes-accent focus:ring-hermes-accent focus:ring-offset-hermes-bg">
+                        <span class="text-sm font-medium text-hermes-text">The Architect (Tech & Code)</span>
+                    </label>
+                    <label class="flex items-center gap-3 p-3 hermes-card cursor-pointer hover:bg-hermes-hover transition">
+                        <input type="checkbox" name="tag[]" value="bestie" class="w-4 h-4 rounded bg-hermes-surface border-hermes-border text-hermes-accent focus:ring-hermes-accent focus:ring-offset-hermes-bg">
+                        <span class="text-sm font-medium text-hermes-text">The Bestie (Casual)</span>
+                    </label>
+                    <label class="flex items-center gap-3 p-3 hermes-card cursor-pointer hover:bg-hermes-hover transition">
+                        <input type="checkbox" name="tag[]" value="sage" class="w-4 h-4 rounded bg-hermes-surface border-hermes-border text-hermes-accent focus:ring-hermes-accent focus:ring-offset-hermes-bg">
+                        <span class="text-sm font-medium text-hermes-text">The Sage (Empathetic)</span>
+                    </label>
+                    <label class="flex items-center gap-3 p-3 hermes-card cursor-pointer hover:bg-hermes-hover transition">
+                        <input type="checkbox" name="tag[]" value="executive" class="w-4 h-4 rounded bg-hermes-surface border-hermes-border text-hermes-accent focus:ring-hermes-accent focus:ring-offset-hermes-bg">
+                        <span class="text-sm font-medium text-hermes-text">The Executive (Business)</span>
+                    </label>
+                    <label class="flex items-center gap-3 p-3 hermes-card cursor-pointer hover:bg-hermes-hover transition">
+                        <input type="checkbox" name="tag[]" value="education" class="w-4 h-4 rounded bg-hermes-surface border-hermes-border text-hermes-accent focus:ring-hermes-accent focus:ring-offset-hermes-bg">
+                        <span class="text-sm font-medium text-hermes-text">The Educator (Academic)</span>
+                    </label>
+                </div>
+                <p class="text-xs text-hermes-muted mt-2">Select one or more personas. Knowledge will be injected when user selects these.</p>
+            </div>
+
+            <div x-data="customTagsInput()" class="relative">
+                <label class="block text-xs font-semibold text-hermes-muted uppercase tracking-wider mb-2">Custom Tags (Optional)</label>
+                <div class="hermes-input p-3">
+                    <div class="flex flex-wrap gap-2 mb-2" x-show="tags.length > 0">
+                        <template x-for="(tag, index) in tags" :key="index">
+                            <span class="hermes-badge bg-hermes-accent/10 text-hermes-accent">
+                                <span x-text="tag"></span>
+                                <button type="button" @click="removeTag(index)" class="hover:text-hermes-danger transition ml-1">
+                                    <i data-lucide="x" class="w-3 h-3"></i>
+                                </button>
+                                <input type="hidden" name="custom_tags[]" :value="tag">
+                            </span>
+                        </template>
+                    </div>
+                    <input type="text" x-model="newTag" 
+                        @keydown.enter.prevent="addTag()" 
+                        @keydown.comma.prevent="addTag()" 
+                        @keydown.tab.prevent="addTag()" 
+                        @paste="handlePaste($event)"
+                        @blur="addTag()"
+                        placeholder="Type tags separated by commas..."
+                        class="w-full bg-transparent outline-none text-sm text-hermes-text placeholder-hermes-muted">
+                </div>
+                <p class="text-xs text-hermes-muted mt-2">Add custom tags for better RAG retrieval.</p>
+            </div>
+
+            <div>
+                <label class="block text-xs font-semibold text-hermes-muted uppercase tracking-wider mb-3">Input Type</label>
+                <div class="flex gap-4">
+                    <label class="flex-1 cursor-pointer">
+                        <input type="radio" name="type" value="text" x-model="type" class="peer sr-only">
+                        <div class="p-4 rounded-xl border border-hermes-border peer-checked:border-hermes-accent peer-checked:bg-hermes-accent/10 transition flex items-center justify-center gap-2 font-medium text-sm text-hermes-muted peer-checked:text-hermes-accent">
+                            <i data-lucide="type" class="w-4 h-4"></i> Raw Text
+                        </div>
+                    </label>
+                    <label class="flex-1 cursor-pointer">
+                        <input type="radio" name="type" value="pdf" x-model="type" class="peer sr-only">
+                        <div class="p-4 rounded-xl border border-hermes-border peer-checked:border-hermes-accent peer-checked:bg-hermes-accent/10 transition flex items-center justify-center gap-2 font-medium text-sm text-hermes-muted peer-checked:text-hermes-accent">
+                            <i data-lucide="file-text" class="w-4 h-4"></i> Upload PDF
+                        </div>
+                    </label>
+                </div>
+            </div>
+
+            <div x-show="type === 'text'">
+                <label class="block text-xs font-semibold text-hermes-muted uppercase tracking-wider mb-2">Content (Knowledge)</label>
+                <textarea name="content" id="content-editor" rows="10"
+                    placeholder="Paste the information here..."
+                    class="hermes-input font-mono text-sm"></textarea>
+            </div>
+
+            <div x-show="type === 'pdf'" style="display: none;">
+                <label class="block text-xs font-semibold text-hermes-muted uppercase tracking-wider mb-2">Upload PDF File</label>
+                <div class="flex items-center justify-center w-full">
+                    <label class="flex flex-col items-center justify-center w-full h-48 border-2 border-hermes-border border-dashed rounded-xl cursor-pointer bg-hermes-surface hover:bg-hermes-hover transition">
+                        <div class="flex flex-col items-center justify-center py-6">
+                            <i data-lucide="upload-cloud" class="w-8 h-8 text-hermes-muted mb-3"></i>
+                            <p class="mb-2 text-sm text-hermes-muted"><span class="font-semibold text-hermes-text">Click to upload</span> or drag and drop</p>
+                            <p class="text-xs text-hermes-muted">PDF (MAX. 10MB)</p>
+                        </div>
+                        <input type="file" name="file" accept=".pdf" class="hidden" />
+                    </label>
+                </div>
+            </div>
+
+            <button type="submit" class="w-full hermes-btn-primary py-4 justify-center text-base">
+                <i data-lucide="save" class="w-5 h-5"></i>
+                Save to Brain
+            </button>
+        </form>
+    </div>
+</div>
+
+<script>
+    function customTagsInput() {
+        return {
+            tags: [],
+            newTag: '',
+            addTag() {
+                const parts = this.newTag.split(',');
+                parts.forEach(part => {
+                    const tag = part.trim().toLowerCase()
+                        .replace(/[^a-z0-9_-]/g, '_')
+                        .replace(/_+/g, '_')
+                        .replace(/^_|_$/g, '');
+                    if (tag && tag.length >= 2 && !this.tags.includes(tag)) {
+                        this.tags.push(tag);
+                    }
+                });
+                this.newTag = '';
+                this.$nextTick(() => lucide.createIcons());
+            },
+            handlePaste(event) {
+                setTimeout(() => this.addTag(), 10);
+            },
+            removeTag(index) {
+                this.tags.splice(index, 1);
+            }
+        }
+    }
+</script>
+
+<script src="https://cdn.ckeditor.com/ckeditor5/39.0.1/super-build/ckeditor.js"></script>
+<script>
+    document.addEventListener("DOMContentLoaded", function() {
+        CKEDITOR.ClassicEditor
+            .create(document.querySelector('#content-editor'), {
+                toolbar: {
+                    items: [
+                        'heading', '|',
+                        'bold', 'italic', 'underline', 'code', '|',
+                        'bulletedList', 'numberedList', '|',
+                        'outdent', 'indent', '|',
+                        'link', 'blockQuote', 'codeBlock', '|',
+                        'undo', 'redo'
+                    ],
+                    shouldNotGroupWhenFull: true
+                },
+                codeBlock: {
+                    languages: [
+                        { language: 'plaintext', label: 'Plain text' },
+                        { language: 'php', label: 'PHP' },
+                        { language: 'javascript', label: 'JavaScript' },
+                        { language: 'html', label: 'HTML' },
+                        { language: 'css', label: 'CSS' },
+                        { language: 'bash', label: 'Bash' },
+                        { language: 'json', label: 'JSON' },
+                        { language: 'sql', label: 'SQL' }
+                    ]
+                },
+                removePlugins: [
+                    'CKBox', 'CKFinder', 'EasyImage', 'RealTimeCollaborativeComments', 'RealTimeCollaborativeTrackChanges', 'RealTimeCollaborativeRevisionHistory', 'PresenceList', 'Comments', 'TrackChanges', 'TrackChangesData', 'RevisionHistory', 'Pagination', 'WProofreader', 'MathType', 'SlashCommand', 'Template', 'DocumentOutline', 'FormatPainter', 'TableOfContents', 'PasteFromOfficeEnhanced', 'CaseChange'
+                ]
+            })
+            .catch(error => console.error(error));
+    });
+</script>
+
+<style>
+    .ck-editor__editable_inline {
+        min-height: 250px;
+        background: rgb(var(--hermes-surface)) !important;
+        color: rgb(var(--hermes-text)) !important;
+        border-color: rgb(var(--hermes-border)) !important;
+        border-bottom-left-radius: 0.75rem !important;
+        border-bottom-right-radius: 0.75rem !important;
+    }
+    .ck-toolbar {
+        background: rgb(var(--hermes-card)) !important;
+        border-color: rgb(var(--hermes-border)) !important;
+        border-top-left-radius: 0.75rem !important;
+        border-top-right-radius: 0.75rem !important;
+    }
+    .ck-toolbar .ck-button { color: rgb(var(--hermes-muted)) !important; }
+    .ck-toolbar .ck-button:hover { background: rgb(var(--hermes-hover)) !important; color: rgb(var(--hermes-text)) !important; }
+    .ck-toolbar .ck-button.ck-on { background: rgb(var(--hermes-accent)) !important; color: white !important; }
+    .ck-dropdown__panel { background: rgb(var(--hermes-card)) !important; border-color: rgb(var(--hermes-border)) !important; }
+    .ck-list__item { color: rgb(var(--hermes-text)) !important; }
+    .ck-list__item:hover { background: rgb(var(--hermes-hover)) !important; }
+    .ck-content ul { list-style-type: disc !important; margin-left: 1.5rem !important; }
+    .ck-content ol { list-style-type: decimal !important; margin-left: 1.5rem !important; }
+    .ck-content pre { background: rgb(var(--hermes-bg)) !important; color: rgb(var(--hermes-text)) !important; padding: 1rem !important; border-radius: 0.5rem !important; }
+    .ck-content code { background: rgb(var(--hermes-hover)) !important; color: #d946ef !important; padding: 0.125rem 0.25rem !important; border-radius: 0.25rem !important; }
+    .dark .ck-content code { color: #f472b6 !important; }
+    .ck-content pre code { background: transparent !important; color: inherit !important; }
+    .ck-content blockquote { border-left: 3px solid rgb(var(--hermes-accent)) !important; background: rgb(var(--hermes-accent) / 0.1) !important; }
+    .ck-content a { color: rgb(var(--hermes-accent)) !important; }
+</style>
+@endsection
