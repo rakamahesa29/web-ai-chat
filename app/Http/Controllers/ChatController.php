@@ -468,6 +468,8 @@ class ChatController extends Controller
         $filePath = $docxService->generateDocx($message->content, 'Draf Skripsi - ' . $message->room->title);
         $fileName = 'Skripsi_' . \Illuminate\Support\Str::slug($message->room->title ?: 'Dokumen') . '_' . $message->id . '.docx';
 
+        if (ob_get_length()) ob_end_clean();
+
         return response()->download($filePath, $fileName)->deleteFileAfterSend(true);
     }
 

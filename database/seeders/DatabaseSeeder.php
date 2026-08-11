@@ -24,7 +24,7 @@ class DatabaseSeeder extends Seeder
             'role' => 'admin',
         ]);
 
-        // 2. Menyiapkan Konfigurasi Fitur (Toggle System)
+     
         $settings = [
             ['key' => 'ollama_enabled', 'value' => true, 'description' => 'Enable Ollama (Gemma4 12B) Local AI'],
             ['key' => 'ollama_cloud_enabled', 'value' => true, 'description' => 'Enable Ollama (Gemma4 31B Cloud) Local AI'],
@@ -35,8 +35,6 @@ class DatabaseSeeder extends Seeder
             Setting::create($setting);
         }
 
-        // 3. Menyiapkan Konfigurasi Model AI (Kritikal untuk mencegah Error 500)
-        // Data ini yang dibaca oleh ConfigurationManager::getConfiguration()
         $aiConfigs = [
             [
                 'model_name' => 'ollama', 

@@ -235,9 +235,14 @@
                                     <div class="text-sm leading-relaxed ai-markdown parsed-message-content"></div>
                                 </div>
                                 <div class="flex items-center gap-1 px-1 mt-1.5">
+                                    <button onclick="copyGeneralText(this)" class="hermes-btn-icon p-1 text-hermes-muted hover:text-hermes-accent" title="Copy Text">
+                                        <i data-lucide="copy" class="w-3.5 h-3.5"></i>
+                                    </button>
+                                    @if(($room->persona ?? 'general') === 'education')
                                     <button onclick="copyForDoc(this)" class="hermes-btn-icon p-1 text-hermes-muted hover:text-hermes-accent" title="Copy for Doc (Format Skripsi)">
                                         <i data-lucide="file-text" class="w-3.5 h-3.5"></i>
                                     </button>
+                                    @endif
                                     <button onclick="exportDocx({{ $msg->id }})" class="hermes-btn-icon p-1 text-hermes-muted hover:text-hermes-accent" title="Export to .docx (MS Word)">
                                         <i data-lucide="file-down" class="w-3.5 h-3.5"></i>
                                     </button>
@@ -830,9 +835,14 @@
 
                                     botColDiv.insertAdjacentHTML('beforeend', `
                                     <div class="flex items-center gap-1 px-1 mt-1.5">
+                                        <button onclick="copyGeneralText(this)" class="hermes-btn-icon p-1 text-hermes-muted hover:text-hermes-accent" title="Copy Text">
+                                            <i data-lucide="copy" class="w-3.5 h-3.5"></i>
+                                        </button>
+                                        ${ `{{ ($room->persona ?? 'general') === 'education' ? 1 : 0 }}` === '1' ? `
                                         <button onclick="copyForDoc(this)" class="hermes-btn-icon p-1 text-hermes-muted hover:text-hermes-accent" title="Copy for Doc (Format Skripsi)">
                                             <i data-lucide="file-text" class="w-3.5 h-3.5"></i>
                                         </button>
+                                        ` : '' }
                                         <button onclick="exportDocx(${data.message_id})" class="hermes-btn-icon p-1 text-hermes-muted hover:text-hermes-accent" title="Export to .docx (MS Word)">
                                             <i data-lucide="file-down" class="w-3.5 h-3.5"></i>
                                         </button>
@@ -1265,6 +1275,34 @@
                 }
             } catch (e) {
                 console.error(e);
+            }
+        }
+
+        async function copyGeneralText(btnElement) {
+            const wrapper = btnElement.closest('.message-wrapper') || btnElement.closest('.flex.flex-col');
+            const rawContent = wrapper ? wrapper.querySelector('.raw-message-content')?.value : null;
+            const parsedContainer = wrapper ? wrapper.querySelector('.parsed-message-content') : null;
+            
+            let plainText = rawContent || (parsedContainer ? parsedContainer.innerText : '');
+
+            if (!plainText) {
+                Swal.fire({
+                    toast: true, position: 'top-end', icon: 'error',
+                    title: 'Tidak ada teks untuk disalin.',
+                    showConfirmButton: false, timer: 3000
+                });
+                return;
+            }
+
+            try {
+                await navigator.clipboard.writeText(plainText);
+                Swal.fire({
+                    toast: true, position: 'top-end', icon: 'success',
+                    title: 'Teks Berhasil Disalin!',
+                    showConfirmButton: false, timer: 3000
+                });
+            } catch (err) {
+                console.error('Failed to copy text: ', err);
             }
         }
 
