@@ -106,6 +106,12 @@ class DocxExportService
                 continue;
             }
 
+            // Skip horizontal rules
+            if ($trimmed === '---' || $trimmed === '***' || $trimmed === '___') {
+                $section->addTextBreak(1, ['size' => 4]); // Small gap instead of printing dashes
+                continue;
+            }
+
             // Handle Tables
             if (str_contains($trimmed, '|')) {
                 // Ignore markdown alignment lines like |---|---|
