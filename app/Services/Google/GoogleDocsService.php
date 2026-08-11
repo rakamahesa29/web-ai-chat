@@ -38,10 +38,38 @@ class GoogleDocsService
         $client = $this->authService->getClient($user);
         $driveService = new Drive($client);
 
-        // Generate DOCX file locally using the robust DocxExportService
-        $docxService = new \App\Services\DocxExportService();
-        $docxPath = $docxService->generateDocx($markdownContent, $title);
-        $docxContent = file_get_contents($docxPath);
+        // Remove DeepSeek thinking block if present
+        $cleanMarkdown = preg_replace('/<details class="ds-thinking">.*?<\/details>\s*/is', '', $markdownContent);
+        // Clean thesis evaluation markers if present
+        $cleanMarkdown = preg_replace('/\[THESIS_EVAL\][\s\S]*?\[\/THESIS_EVAL\]/g', '', $cleanMarkdown);
+        $cleanMarkdown = trim($cleanMarkdown ?: $markdownContent);
+
+        // Convert Markdown to HTML natively using Laravel's markdown parser
+        $html = \Illuminate\Support\Str::markdown($cleanMarkdown);
+
+        // Wrap in styled HTML for optimal Google Docs import
+        $styledHtml = "
+        <html>
+            <head>
+                <style>
+                    body { font-family: 'Times New Roman', Times, serif; font-size: 12pt; line-height: 1.5; color: #000000; text-align: justify; }
+                    table { border-collapse: collapse; width: 100%; margin-bottom: 1rem; font-family: sans-serif; }
+                    th, td { border: 1px solid #d1d5db; padding: 8px 12px; color: #000000; }
+                    th { background-color: #f3f4f6; font-weight: bold; text-align: left; }
+                    h1, h2, h3 { color: #000000; font-family: 'Times New Roman', Times, serif; }
+                    h1 { text-align: center; font-size: 14pt; }
+                    h2 { font-size: 12pt; }
+                    h3 { font-size: 12pt; font-style: italic; }
+                    code { font-family: 'Courier New', Courier, monospace; background-color: #f3f4f6; padding: 2px 4px; border-radius: 4px; }
+                    pre { background-color: #f3f4f6; padding: 10px; border-radius: 4px; overflow-x: auto; }
+                    blockquote { border-left: 4px solid #d1d5db; margin-left: 0; padding-left: 1rem; color: #4b5563; font-style: italic; }
+                </style>
+            </head>
+            <body>
+                {$html}
+            </body>
+        </html>
+        ";
 
         // Upload to Google Drive and convert to Google Docs natively
         $fileMetadata = new \Google\Service\Drive\DriveFile([
@@ -50,16 +78,11 @@ class GoogleDocsService
         ]);
 
         $file = $driveService->files->create($fileMetadata, [
-            'data' => $docxContent,
-            'mimeType' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            'data' => $styledHtml,
+            'mimeType' => 'text/html',
             'uploadType' => 'multipart',
             'fields' => 'id, webViewLink'
         ]);
-
-        // Clean up temporary docx file
-        if (file_exists($docxPath)) {
-            unlink($docxPath);
-        }
 
         return $file->webViewLink ?: "https://docs.google.com/document/d/{$file->id}/edit";
     }
