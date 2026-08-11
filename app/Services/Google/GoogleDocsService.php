@@ -46,8 +46,10 @@ class GoogleDocsService
         $doc = $docsService->documents->create($doc);
         $documentId = $doc->documentId;
 
+        // Remove DeepSeek thinking block if present
+        $cleanMarkdown = preg_replace('/<details class="ds-thinking">.*?<\/details>\s*/is', '', $markdownContent);
         // Clean thesis evaluation markers if present
-        $cleanMarkdown = preg_replace('/\[THESIS_EVAL\][\s\S]*?\[\/THESIS_EVAL\]/g', '', $markdownContent);
+        $cleanMarkdown = preg_replace('/\[THESIS_EVAL\][\s\S]*?\[\/THESIS_EVAL\]/g', '', $cleanMarkdown);
         $cleanMarkdown = trim($cleanMarkdown ?: $markdownContent);
 
         // Parse content into plain text and batch requests for Google Docs API

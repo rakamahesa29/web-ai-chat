@@ -18,6 +18,9 @@ class DocxExportService
      */
     public function generateDocx(string $markdownContent, string $title = 'Dokumen Skripsi'): string
     {
+        // Remove DeepSeek thinking block if present
+        $markdownContent = preg_replace('/<details class="ds-thinking">.*?<\/details>\s*/is', '', $markdownContent);
+
         // Filter out invalid XML control characters
         $markdownContent = preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/u', '', $markdownContent);
         // Escape special characters to prevent invalid XML in the docx
