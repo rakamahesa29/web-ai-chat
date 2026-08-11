@@ -1280,12 +1280,10 @@
 
         async function copyGeneralText(btnElement) {
             const wrapper = btnElement.closest('.message-wrapper') || btnElement.closest('.flex.flex-col');
-            const rawContent = wrapper ? wrapper.querySelector('.raw-message-content')?.value : null;
             const parsedContainer = wrapper ? wrapper.querySelector('.parsed-message-content') : null;
-            
-            let plainText = rawContent || (parsedContainer ? parsedContainer.innerText : '');
+            const rawContent = wrapper ? wrapper.querySelector('.raw-message-content')?.value : null;
 
-            if (!plainText) {
+            if (!parsedContainer && !rawContent) {
                 Swal.fire({
                     toast: true, position: 'top-end', icon: 'error',
                     title: 'Tidak ada teks untuk disalin.',
@@ -1295,14 +1293,83 @@
             }
 
             try {
-                await navigator.clipboard.writeText(plainText);
+                if (parsedContainer) {
+                    // Clone the container so we don't change the actual UI
+                    const clone = parsedContainer.cloneNode(true);
+                    
+                    // Remove thinking blocks
+                    clone.querySelectorAll('details.ds-thinking').forEach(el => el.remove());
+                    
+                    // Inject inline styles for tables to ensure they format correctly when pasted
+                    const tables = clone.querySelectorAll('table');
+                    tables.forEach(table => {
+                        table.style.borderCollapse = 'collapse';
+                        table.style.width = '100%';
+                        table.style.marginBottom = '1rem';
+                        table.style.fontFamily = 'sans-serif';
+                    });
+                    
+                    const ths = clone.querySelectorAll('th');
+                    ths.forEach(th => {
+                        th.style.border = '1px solid #d1d5db';
+                        th.style.padding = '8px 12px';
+                        th.style.backgroundColor = '#f3f4f6';
+                        th.style.fontWeight = 'bold';
+                        th.style.textAlign = 'left';
+                        th.style.color = '#000000';
+                    });
+                    
+                    const tds = clone.querySelectorAll('td');
+                    tds.forEach(td => {
+                        td.style.border = '1px solid #d1d5db';
+                        td.style.padding = '8px 12px';
+                        td.style.color = '#000000';
+                    });
+
+                    // To get accurate innerText with line breaks, the node must be in the DOM
+                    const tempDiv = document.createElement('div');
+                    tempDiv.style.position = 'absolute';
+                    tempDiv.style.left = '-9999px';
+                    tempDiv.style.visibility = 'hidden';
+                    tempDiv.appendChild(clone);
+                    document.body.appendChild(tempDiv);
+
+                    const htmlContent = clone.innerHTML;
+                    const plainText = clone.innerText;
+                    
+                    document.body.removeChild(tempDiv);
+                    
+                    const htmlBlob = new Blob([htmlContent], { type: 'text/html' });
+                    const textBlob = new Blob([plainText], { type: 'text/plain' });
+                    
+                    const clipboardItem = new ClipboardItem({
+                        'text/html': htmlBlob,
+                        'text/plain': textBlob
+                    });
+                    
+                    await navigator.clipboard.write([clipboardItem]);
+                } else {
+                    await navigator.clipboard.writeText(rawContent);
+                }
+
                 Swal.fire({
                     toast: true, position: 'top-end', icon: 'success',
                     title: 'Teks Berhasil Disalin!',
                     showConfirmButton: false, timer: 3000
                 });
             } catch (err) {
-                console.error('Failed to copy text: ', err);
+                console.warn('ClipboardItem failed, falling back to writeText: ', err);
+                try {
+                    const fallbackText = parsedContainer ? parsedContainer.innerText : rawContent;
+                    await navigator.clipboard.writeText(fallbackText);
+                    Swal.fire({
+                        toast: true, position: 'top-end', icon: 'success',
+                        title: 'Teks Berhasil Disalin (Plain Text)!',
+                        showConfirmButton: false, timer: 3000
+                    });
+                } catch (fallbackErr) {
+                    console.error('Copy failed completely: ', fallbackErr);
+                }
             }
         }
 
@@ -1311,11 +1378,27 @@
             const rawContent = wrapper ? wrapper.querySelector('.raw-message-content')?.value : null;
             const parsedContainer = wrapper ? wrapper.querySelector('.parsed-message-content') : null;
             
-            let htmlContent = parsedContainer ? parsedContainer.innerHTML : '';
-            let plainText = parsedContainer ? parsedContainer.innerText : (rawContent || '');
+            let htmlContent = '';
+            let plainText = '';
 
-            if (!htmlContent && rawContent) {
+            if (parsedContainer) {
+                const clone = parsedContainer.cloneNode(true);
+                clone.querySelectorAll('details.ds-thinking').forEach(el => el.remove());
+                
+                const tempDiv = document.createElement('div');
+                tempDiv.style.position = 'absolute';
+                tempDiv.style.left = '-9999px';
+                tempDiv.style.visibility = 'hidden';
+                tempDiv.appendChild(clone);
+                document.body.appendChild(tempDiv);
+                
+                htmlContent = clone.innerHTML;
+                plainText = clone.innerText;
+                
+                document.body.removeChild(tempDiv);
+            } else if (rawContent) {
                 htmlContent = typeof marked !== 'undefined' ? parseMarkdownSafe(rawContent) : rawContent;
+                plainText = rawContent;
             }
 
             if (!htmlContent && !plainText) {

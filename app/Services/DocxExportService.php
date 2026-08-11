@@ -18,6 +18,11 @@ class DocxExportService
      */
     public function generateDocx(string $markdownContent, string $title = 'Dokumen Skripsi'): string
     {
+        // Filter out invalid XML control characters
+        $markdownContent = preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/u', '', $markdownContent);
+        // Escape special characters to prevent invalid XML in the docx
+        $markdownContent = htmlspecialchars($markdownContent, ENT_XML1 | ENT_QUOTES, 'UTF-8');
+
         $phpWord = new PhpWord();
         
         // Set document language to Indonesian
