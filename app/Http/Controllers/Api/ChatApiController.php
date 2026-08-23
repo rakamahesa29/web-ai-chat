@@ -94,7 +94,20 @@ class ChatApiController extends Controller
             ->get()
             ->map(fn($msg) => $this->formatMessage($msg));
 
-        return response()->json(['status' => 'ok', 'data' => $messages]);
+        $summaries = $room->summaries()
+            ->orderBy('created_at')
+            ->get()
+            ->map(fn($summary) => [
+                'id' => $summary->id,
+                'content' => $summary->content,
+                'created_at' => $summary->created_at?->toISOString()
+            ]);
+
+        return response()->json([
+            'status' => 'ok', 
+            'data' => $messages,
+            'summaries' => $summaries
+        ]);
     }
 
     /**
@@ -380,6 +393,15 @@ class ChatApiController extends Controller
                 ->orderBy('created_at')
                 ->get()
                 ->map(fn($m) => $this->formatMessage($m));
+            
+            $data['summaries'] = $room->summaries()
+                ->orderBy('created_at')
+                ->get()
+                ->map(fn($summary) => [
+                    'id' => $summary->id,
+                    'content' => $summary->content,
+                    'created_at' => $summary->created_at?->toISOString()
+                ]);
         }
 
         return $data;

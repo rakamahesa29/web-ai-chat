@@ -2,11 +2,12 @@
 
 namespace App\Services\AI\Adapters;
 
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
 class OllamaAdapter implements BaseAdapter
 {
+    use StreamsHttpResponse;
+
     protected string $modelName;
     protected string $baseUrl;
 
@@ -42,79 +43,42 @@ class OllamaAdapter implements BaseAdapter
             'model' => $this->modelName,
             'messages' => $finalPayload,
             'stream' => true,
-            'keep_alive' => '24h',
+            'keep_alive' => '1h',
             'options' => [
                 'temperature' => config('services.ollama.temperature', 0.60),
                 'num_ctx' => config('services.ollama.context_length', 32768),
             ],
         ];
 
-        $response = Http::withHeaders([
-                'Content-Type' => 'application/json',
-                'Connection' => 'keep-alive',
-            ])
-            ->withOptions([
-                'stream' => true,
-                'verify' => false,
-                'curl' => [CURLOPT_TCP_KEEPALIVE => 1],
-            ])
-            ->timeout(config('services.ollama.timeout', 300))
-            ->post($this->baseUrl . '/api/chat', $requestPayload);
-
-        if (!$response->successful()) {
-            Log::error("Ollama API Error [{$this->modelName}]: " . $response->body());
-            throw new \Exception("Failed to connect to Ollama API.");
-        }
-
-        $stream = $response->toPsrResponse()->getBody();
-        $buffer = '';
         $finishReason = null;
         $promptTokens = 0;
         $completionTokens = 0;
+        $isThinking = false;
+        $thinkingEmitted = false;
+        $contentEmitted = false;
 
-        while (!$stream->eof()) {
-            $buffer .= $stream->read(8192);
-            
-            while (($pos = strpos($buffer, "\n")) !== false) {
-                $line = substr($buffer, 0, $pos);
-                $buffer = substr($buffer, $pos + 1);
+        $timeout = (int) config('services.ollama.timeout', 300);
 
-                $line = trim($line);
-                if (empty($line)) continue;
-
-                $data = json_decode($line, true);
-
-                if ($data === null) continue;
-
-                if (isset($data['message']['content'])) {
-                    yield [
-                        'content' => $data['message']['content'],
-                        'done' => false
-                    ];
-                }
-
-                if (isset($data['done']) && $data['done'] === true) {
-                    $finishReason = $data['done_reason'] ?? 'stop';
-                    
-                    if (isset($data['prompt_eval_count'])) {
-                        $promptTokens = $data['prompt_eval_count'];
-                    }
-                    if (isset($data['eval_count'])) {
-                        $completionTokens = $data['eval_count'];
-                    }
-                    
-                    // Log completion stats for debugging
-                    Log::info("Ollama Response Complete", [
-                        'model' => $this->modelName,
-                        'finish_reason' => $finishReason,
-                        'prompt_tokens' => $promptTokens,
-                        'completion_tokens' => $completionTokens,
-                        'truncated' => $finishReason === 'length', // True if hit token limit
-                    ]);
-                    
-                    break 2;
-                }
+        foreach ($this->streamLines($this->baseUrl . '/api/chat', $requestPayload, [], $timeout, 'Ollama API') as $line) {
+            $data = json_decode($line, true);
+            if ($data === null) {
+                continue;
             }
+
+            foreach ($this->processChunkData($data, $isThinking, $thinkingEmitted, $contentEmitted, $finishReason, $promptTokens, $completionTokens) as $yieldData) {
+                if (isset($yieldData['type']) && $yieldData['type'] === 'done_signal') {
+                    continue 2; // sentinel — final chunk processed, keep draining stream until socket closes
+                }
+                yield $yieldData;
+            }
+        }
+
+        // Close thinking block if still open
+        if ($isThinking) {
+            yield [
+                'content' => "\n\n</details>\n\n",
+                'done' => false,
+            ];
         }
 
         yield [
@@ -122,7 +86,83 @@ class OllamaAdapter implements BaseAdapter
             'done' => true,
             'finish_reason' => $finishReason,
             'tokens' => $completionTokens,
-            'prompt_tokens' => $promptTokens 
+            'prompt_tokens' => $promptTokens
         ];
+    }
+
+    /**
+     * Process a single JSON chunk from Ollama and yield the formatted data.
+     */
+    private function processChunkData(array $data, &$isThinking, &$thinkingEmitted, &$contentEmitted, &$finishReason, &$promptTokens, &$completionTokens): \Generator
+    {
+        // Handle reasoning/thinking content
+        if (isset($data['message']['thinking']) && $data['message']['thinking'] !== '') {
+            if (!$thinkingEmitted) {
+                $thinkingEmitted = true;
+                $isThinking = true;
+                yield [
+                    'content' => "<details class=\"ds-thinking\">\n<summary>💭 AI Thinking...</summary>\n\n",
+                    'done' => false
+                ];
+            }
+            yield [
+                'content' => $data['message']['thinking'],
+                'done' => false
+            ];
+        }
+
+        // Transition from thinking to actual response
+        if ($isThinking && isset($data['message']['content']) && $data['message']['content'] !== '') {
+            $isThinking = false;
+            yield [
+                'content' => "\n\n</details>\n\n",
+                'done' => false
+            ];
+        }
+
+        // Handle main content
+        if (isset($data['message']['content']) && $data['message']['content'] !== '') {
+            $contentStr = $data['message']['content'];
+            $contentEmitted = true;
+
+            // Handle <think> tags if model outputs them in content instead of thinking field
+            if (strpos($contentStr, '<think>') !== false) {
+                $isThinking = true;
+                $contentStr = str_replace('<think>', "<details class=\"ds-thinking\">\n<summary>💭 AI Thinking...</summary>\n\n", $contentStr);
+            }
+            if (strpos($contentStr, '</think>') !== false) {
+                $isThinking = false;
+                $contentStr = str_replace('</think>', "\n\n</details>\n\n", $contentStr);
+            }
+
+            yield [
+                'content' => $contentStr,
+                'done' => false
+            ];
+        }
+
+        if (isset($data['done']) && $data['done'] === true) {
+            $finishReason = $data['done_reason'] ?? 'stop';
+
+            if (isset($data['prompt_eval_count'])) {
+                $promptTokens = $data['prompt_eval_count'];
+            }
+            if (isset($data['eval_count'])) {
+                $completionTokens = $data['eval_count'];
+            }
+
+            // Log completion stats for debugging
+            Log::info("Ollama Response Complete", [
+                'model' => $this->modelName,
+                'finish_reason' => $finishReason,
+                'prompt_tokens' => $promptTokens,
+                'completion_tokens' => $completionTokens,
+                'truncated' => $finishReason === 'length',
+            ]);
+
+            yield [
+                'type' => 'done_signal'
+            ];
+        }
     }
 }

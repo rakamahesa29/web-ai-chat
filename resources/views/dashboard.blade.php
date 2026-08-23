@@ -47,7 +47,7 @@
                         <div class="w-8 h-8 bg-blue-500/10 rounded-lg flex items-center justify-center">
                             <i data-lucide="cpu" class="w-4 h-4 text-blue-400"></i>
                         </div>
-                        <span class="text-sm font-medium text-hermes-text">Ollama (Gemma4 12B)</span>
+                        <span class="text-sm font-medium text-hermes-text">Ollama (Ornith)</span>
                     </div>
                     <button onclick="toggleProvider('ollama')" id="toggle-ollama"
                         class="relative inline-flex h-6 w-11 items-center rounded-full {{ !empty($stats['is_ollama_mode']) ? 'bg-hermes-success' : 'bg-hermes-border' }} transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-hermes-accent focus:ring-offset-2 focus:ring-offset-hermes-bg">
@@ -335,7 +335,7 @@
                     @endif
                     <select id="analysisModelSelect"
                         class="bg-hermes-surface border border-hermes-border rounded-xl px-3 py-2.5 text-sm text-hermes-text focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500/50 transition-colors">
-                        <option value="ollama" {{ ($latestAnalysis && $latestAnalysis->model_used === 'ollama') ? 'selected' : '' }}>Gemma4 12B (Local)</option>
+                        <option value="ollama" {{ ($latestAnalysis && $latestAnalysis->model_used === 'ollama') ? 'selected' : '' }}>Ornith (Local)</option>
                         <option value="ollama_cloud" {{ ($latestAnalysis && $latestAnalysis->model_used === 'ollama_cloud') ? 'selected' : '' }}>Gemma4 31B (Cloud)</option>
                         <option value="deepseek" {{ (!$latestAnalysis || $latestAnalysis->model_used === 'deepseek') ? 'selected' : '' }}>DeepSeek API</option>
                     </select>
@@ -383,7 +383,7 @@
                     <div class="flex items-center gap-2">
                         <span class="text-xs text-amber-400 bg-amber-500/10 px-2 py-1 rounded-full flex items-center gap-1">
                             <i data-lucide="cpu" class="w-3 h-3"></i>
-                            {{ $latestAnalysis->model_used === 'ollama' ? 'Gemma4 12B' : ($latestAnalysis->model_used === 'ollama_cloud' ? 'Gemma4 31B' : 'DeepSeek') }}
+                            {{ $latestAnalysis->model_used === 'ollama' ? 'Ornith' : ($latestAnalysis->model_used === 'ollama_cloud' ? 'Gemma4 31B' : 'DeepSeek') }}
                         </span>
                         <span class="text-xs text-emerald-400 bg-emerald-500/10 px-2 py-1 rounded-full flex items-center gap-1">
                             <i data-lucide="database" class="w-3 h-3"></i>
@@ -635,7 +635,7 @@
             @if($latestAnalysis && in_array($latestAnalysis->status, ['pending', 'processing']))
                 document.getElementById('analysisModelSelect').disabled = true;
                 setAnalyzingState(
-                    '{{ $latestAnalysis->status === "pending" ? "Analysis queued, waiting for processing..." : (($latestAnalysis->model_used === "ollama" ? "Gemma4 12B" : ($latestAnalysis->model_used === "ollama_cloud" ? "Gemma4 31B" : "DeepSeek")) . " is analyzing your data...") }}',
+                    '{{ $latestAnalysis->status === "pending" ? "Analysis queued, waiting for processing..." : (($latestAnalysis->model_used === "ollama" ? "Ornith" : ($latestAnalysis->model_used === "ollama_cloud" ? "Gemma4 31B" : "DeepSeek")) . " is analyzing your data...") }}',
                     {{ $latestAnalysis->id }}
                 );
             @endif
@@ -703,7 +703,7 @@
 
         function getModelLabel(provider) {
             const labels = {
-                'ollama': 'Gemma4 12B',
+                'ollama': 'Ornith',
                 'ollama_cloud': 'Gemma4 31B',
                 'deepseek': 'DeepSeek'
             };
