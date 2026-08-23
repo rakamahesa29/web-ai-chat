@@ -31,7 +31,7 @@ class PromptBuilder
         if (isset($modelMapping[$modelName])) {
             $activeModel = config($modelMapping[$modelName]);
         } else {
-            $activeModel = $modelName ?? config('services.ollama.model', 'gemma4:12b-mlx');
+            $activeModel = $modelName ?? config('services.ollama.model', 'ornith');
         }
         
         // 2. Determine Persona & System Rules

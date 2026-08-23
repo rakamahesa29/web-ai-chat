@@ -19,9 +19,14 @@ use Illuminate\Support\Facades\Log;
  */
 class AgentProcessor
 {
-    private ?string $workspacePath = null;
-    private int $maxIterations = 10;
+    private string $workspacePath = '';
+    private int $maxIterations = 30;
     private string $stateTokenCachePrefix = 'agent_state_';
+
+    public function __construct(string $stateTokenCachePrefix = 'agent_state_')
+    {
+        $this->stateTokenCachePrefix = $stateTokenCachePrefix;
+    }
 
     // ──────────────────────────────────────────────
     //  Phase 1: Initial agent request
@@ -58,9 +63,6 @@ class AgentProcessor
         $messages[] = ['role' => 'user', 'content' => $this->buildUserPrompt($userMessage)];
 
         $phase1Options = $options;
-        if (in_array($modelName, ['deepseek', 'deepseek-reasoner', 'deepseek-chat'])) {
-            $phase1Options['deepseek_pro'] = false; // Force Flash (chat) for fast planning
-        }
         $adapter = ProviderFactory::make($modelName, $phase1Options);
         $iteration = 0;
 
@@ -72,7 +74,7 @@ class AgentProcessor
             $aiResponse = '';
             yield from $this->streamAndCollectResponse($adapter, $messages, $aiResponse);
             if (empty(trim($aiResponse))) {
-                yield ['content' => '❌ Agent Error: AI returned empty response.', 'done' => true];
+                yield ['content' => 'Agent Error: AI returned empty response.', 'done' => true];
                 return;
             }
 
@@ -159,14 +161,16 @@ class AgentProcessor
         // Emit tool execution results as a visible summary
         yield ['content' => $this->buildToolResultSummary($toolResults), 'done' => false];
 
-        // Feed AI response + tool results back into conversation
-        $messages[] = ['role' => 'assistant', 'content' => $aiResponse];
+        // Feed stripped AI response + tool results back into conversation
+        // We strip tool calls to save tokens and prevent context bloat
+        $cleanAiResponse = $this->stripToolCalls($aiResponse);
+        if (empty($cleanAiResponse)) {
+            $cleanAiResponse = "Executed operations.";
+        }
+        $messages[] = ['role' => 'assistant', 'content' => $cleanAiResponse];
         $messages[] = ['role' => 'user', 'content' => $this->formatToolResults($toolResults)];
 
         $phase2Options = $options;
-        if (in_array($modelName, ['deepseek', 'deepseek-reasoner', 'deepseek-chat'])) {
-            $phase2Options['deepseek_pro'] = true; // Use Pro (reasoner) for complex synthesis
-        }
         $adapter = ProviderFactory::make($modelName, $phase2Options);
 
         yield ['type' => 'meta', 'status' => 'agent_analyzing', 'message' => 'Analyzing tool results…'];
@@ -304,7 +308,7 @@ Delete a file.
 2. **Use write_file to create files.** Do NOT output code in chat.
 3. **Be concise.** After receiving tool results, give a brief confirmation.
 4. **Respond in the user's language.**
-5. You can use multiple tool calls in one response.
+5. **CRITICAL:** You MUST ONLY use ONE `<tool_call>` per response. Do not output multiple tool calls at once. After you issue one tool call, stop your response immediately and wait for the system to execute it.
 6. **JSON must be valid.** Escape double quotes in content as `\"` and use `\n` for newlines. Keep tool call JSON compact.
 
 ## Example
@@ -312,7 +316,7 @@ Delete a file.
 User: "buatkan index.html dengan Hello World"
 Agent: <tool_call>{"tool": "write_file", "path": "index.html", "content": "<!DOCTYPE html>\n<html>\n<body><h1>Hello World</h1></body>\n</html>"}</tool_call>
 
-After tool results: "✅ index.html telah dibuat."
+After tool results: "index.html telah dibuat."
 PROMPT;
     }
 
@@ -421,6 +425,18 @@ PROMPT;
      */
     private function salvageJsonFields(string $raw): ?array
     {
+        // Try XML <invoke> format first (used by some models natively)
+        if (preg_match('/<invoke\s+name="([^"]+)">/s', $raw, $m)) {
+            $result = ['tool' => $m[1]];
+            if (preg_match('/<parameter\s+name="path">\s*(.*?)\s*<\/parameter>/s', $raw, $pm)) {
+                $result['path'] = $pm[1];
+            }
+            if (preg_match('/<parameter\s+name="content">\s*(.*?)\s*(<\/parameter>|<\/invoke>|$)/s', $raw, $pm)) {
+                $result['content'] = $pm[1];
+            }
+            return $result;
+        }
+
         // Extract "tool": "value"
         if (!preg_match('/"tool"\s*:\s*"(write_file|read_file|delete_file|list_files)"/', $raw, $m)) {
             return null;
@@ -432,11 +448,9 @@ PROMPT;
             $result['path'] = $m[1];
         }
 
-        // Extract "content": "..." — handles multiline content
-        // Strategy: find "content": " then capture everything until the last "} or " at end
-        if (preg_match('/"content"\s*:\s*"(.*)"\s*\}$/s', $raw, $m)) {
-            $result['content'] = stripslashes($m[1]);
-        } elseif (preg_match('/"content"\s*:\s*"(.*)"$/s', $raw, $m)) {
+        // Extract "content": "..." — handles multiline content and truncation
+        // Match from "content": " until the last "} or end of string if truncated.
+        if (preg_match('/"content"\s*:\s*"(.*?)("\s*\}|"$|$)/s', $raw, $m)) {
             $result['content'] = stripslashes($m[1]);
         }
 
@@ -450,9 +464,14 @@ PROMPT;
             $icon = ($r['status'] ?? 'error') === 'success' ? '✅' : '❌';
             $text .= "{$icon} [{$r['tool']}] {$r['path']}: {$r['message']}\n";
             if (isset($r['content'])) {
-                $max = 8000;
-                $c = strlen($r['content']) > $max ? substr($r['content'], 0, $max) . "\n...(truncated)" : $r['content'];
-                $text .= "```\n{$c}\n```\n";
+                if (($r['tool'] ?? '') === 'write_file') {
+                    // Do not feed back the full content for write_file to prevent token bloat
+                    $text .= "```\n...(content successfully saved)...\n```\n";
+                } else {
+                    $max = 8000;
+                    $c = strlen($r['content']) > $max ? substr($r['content'], 0, $max) . "\n...(truncated)" : $r['content'];
+                    $text .= "```\n{$c}\n```\n";
+                }
             }
             if (isset($r['files'])) {
                 foreach ($r['files'] as $f) {
@@ -475,10 +494,10 @@ PROMPT;
      */
     private function stripToolCalls(string $response): string
     {
-        // Strip <tool_call> blocks (including malformed ones)
-        $cleaned = preg_replace('/<tool_call>.*?<\/tool_call>/s', '', $response);
-        // Also strip orphaned <tool_call> without closing tag
-        $cleaned = preg_replace('/<tool_call>.*$/ms', '', $cleaned);
+        // Strip <tool_call>, <tool_calls>, and <invoke> blocks
+        $cleaned = preg_replace('/<(tool_call|tool_calls|invoke)>.*?<\/\1>/s', '', $response);
+        // Also strip orphaned tags without closing tag
+        $cleaned = preg_replace('/<(tool_call|tool_calls|invoke)>.*$/ms', '', $cleaned);
         // Strip bare JSON tool objects
         $cleaned = preg_replace('/\n?\{[^{}]*"tool"\s*:\s*"(write_file|read_file|delete_file|list_files)"[^{}]*\}\n?/s', '', $cleaned);
         return trim($cleaned);

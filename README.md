@@ -15,8 +15,14 @@ A full-featured, self-hosted AI chat application built with Laravel 13 and a dar
 
 ## Features
 
+### True Agentic Loop (Agent Mode)
+- **Multi-Step Execution:** Built-in loop mechanism supporting up to 30 continuous iterations per request. The agent thinks, executes a tool (via the Swift client), reads the result, and loops back automatically until the goal is completed.
+- **Resilient Tool Parsing:** Robust regex-based fallback parsers that can handle both standard JSON `<tool_call>` syntax and native XML `<invoke>` syntax (often used by DeepSeek/Anthropic models when heavily reasoning).
+- **Infinite Reasoning Timeout:** DeepSeek API connections are configured with extended timeouts (15+ minutes) to ensure that reasoning models (DeepSeek Pro) do not timeout during massive multi-file generation tasks.
+- **Agent Context Summarization (Sliding Window):** Prevents token inflation during massive generation tasks by intelligently stripping out raw JSON/XML tool calls from the conversation history and compacting successful file write payloads, ensuring ultra-fast TTFT (Time To First Token) even after 30 iterations.
+
 ### Multi-Provider AI Chat
-- **Three LLM backends** switchable per-message: Ollama local (Gemma4 12B), Ollama Cloud (Gemma4 31B), and DeepSeek API.
+- **Three LLM backends** switchable per-message: Ollama local (Ornith), Ollama Cloud (Gemma4 31B), and DeepSeek API.
 - **DeepSeek Pro Mode:** Toggle to switch from DeepSeek V4 Flash to DeepSeek V4 Pro with chain-of-thought reasoning enabled. Thinking/reasoning steps are rendered in a collapsible `<details>` block in the UI.
 - **Adaptive reasoning effort:** DeepSeek Pro automatically adjusts reasoning depth based on query classification — `low` for general chat, `medium` for latest data queries, `high` for domain-specific/code tasks.
 - **DeepSeek prefix caching:** System prompt is split into a stable static prefix (cached by DeepSeek's KV cache) and dynamic RAG content, reducing TTFT by up to 50-80% on repeated sessions.
@@ -231,7 +237,7 @@ DB_PASSWORD=
 
 # Ollama (Local)
 OLLAMA_BASE_URL=http://127.0.0.1:11434
-OLLAMA_GEMMA4_MODEL=gemma4:12b
+OLLAMA_ORNITH_MODEL=ornith
 OLLAMA_EMBEDDING_MODEL=bge-m3
 
 # Ollama (Cloud)

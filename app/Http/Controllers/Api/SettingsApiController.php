@@ -21,7 +21,7 @@ class SettingsApiController extends Controller
                 /* Providers */
                 'ollama_enabled'           => $this->bool($all, 'ollama_enabled', true),
                 'ollama_local_url'         => $all['ollama_local_url'] ?? 'http://127.0.0.1:11434',
-                'ollama_local_model'       => $all['ollama_local_model'] ?? 'gemma4:12b-mlx',
+                'ollama_local_model'       => $all['ollama_local_model'] ?? 'ornith',
 
                 'ollama_cloud_enabled'     => $this->bool($all, 'ollama_cloud_enabled', false),
                 'ollama_cloud_url'         => $all['ollama_cloud_url'] ?? '',

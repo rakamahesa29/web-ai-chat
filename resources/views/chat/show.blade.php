@@ -176,7 +176,7 @@
                     </button>
                     <select id="modelSelect" class="hermes-input py-2 px-3 text-sm w-36 md:w-44 cursor-pointer">
                         @php $currentModel = request('model') ?? $room->model ?? 'deepseek'; @endphp
-                        <option value="ollama" {{ $currentModel === 'ollama' ? 'selected' : '' }}>Gemma4 12B</option>
+                        <option value="ollama" {{ $currentModel === 'ollama' ? 'selected' : '' }}>Ornith</option>
                         <option value="ollama_cloud" {{ $currentModel === 'ollama_cloud' ? 'selected' : '' }}>Gemma4 31B Cloud</option>
                         <option value="deepseek" {{ $currentModel === 'deepseek' ? 'selected' : '' }}>DeepSeek API</option>
                     </select>
@@ -357,7 +357,7 @@
                 <div class="hermes-status-item">
                     <i data-lucide="cpu" class="w-3.5 h-3.5"></i>
                     <span id="status-model">
-                        {{ $currentModel === 'deepseek' ? 'DeepSeek' : ($currentModel === 'ollama_cloud' ? 'Gemma4 31-Cloud' : 'Gemma4 12B') }}
+                        {{ $currentModel === 'deepseek' ? 'DeepSeek' : ($currentModel === 'ollama_cloud' ? 'Gemma4 31-Cloud' : 'Ornith') }}
                     </span>
                 </div>
                 <div class="hermes-status-item">
@@ -1637,7 +1637,7 @@
         
         document.getElementById('modelSelect').addEventListener('change', function(e) {
             document.getElementById('selectedModel').value = e.target.value;
-            statusModel.textContent = e.target.value === 'deepseek' ? 'DeepSeek' : e.target.value === 'ollama_cloud' ? 'Gemma4 31B Cloud' : 'Gemma4 12B';
+            statusModel.textContent = e.target.value === 'deepseek' ? 'DeepSeek' : e.target.value === 'ollama_cloud' ? 'Gemma4 31B Cloud' : 'Ornith';
 
             const url = new URL(window.location);
             url.searchParams.set('model', e.target.value);

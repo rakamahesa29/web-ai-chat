@@ -64,7 +64,7 @@ class DeepseekAdapter implements BaseAdapter
                 'verify' => false,
             ])
             ->connectTimeout(15) // Waktu maksimal untuk menghubungkan
-            ->timeout(120) // Waktu maksimal menunggu respon (2 menit)
+            ->timeout(900) // Waktu maksimal menunggu respon (15 menit untuk model reasoning)
             ->post($this->baseUrl . '/chat/completions', $requestPayload);
 
         if (!$response->successful()) {

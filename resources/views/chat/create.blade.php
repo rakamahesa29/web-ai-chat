@@ -69,7 +69,7 @@
                     <div class="relative">
                         <select name="model_name"
                             class="w-full p-4 pr-12 bg-hermes-surface border border-hermes-border rounded-xl focus:bg-hermes-hover focus:ring-2 focus:ring-hermes-accent focus:border-hermes-accent outline-none transition text-sm text-hermes-text cursor-pointer appearance-none">
-                            <option value="ollama" selected>Ollama (Gemma4 12B)</option>
+                            <option value="ollama" selected>Ollama (Ornith)</option>
                             <option value="ollama_cloud">Ollama (Gemma4 31B Cloud)</option>
                             <option value="deepseek">DeepSeek API</option>
                         </select>

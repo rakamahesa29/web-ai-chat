@@ -26,7 +26,7 @@ class DatabaseSeeder extends Seeder
 
      
         $settings = [
-            ['key' => 'ollama_enabled', 'value' => true, 'description' => 'Enable Ollama (Gemma4 12B) Local AI'],
+            ['key' => 'ollama_enabled', 'value' => true, 'description' => 'Enable Ollama (Ornith) Local AI'],
             ['key' => 'ollama_cloud_enabled', 'value' => true, 'description' => 'Enable Ollama (Gemma4 31B Cloud) Local AI'],
             ['key' => 'deepseek_enabled', 'value' => false, 'description' => 'Enable DeepSeek API'],
         ];
@@ -39,7 +39,7 @@ class DatabaseSeeder extends Seeder
             [
                 'model_name' => 'ollama', 
                 'provider' => 'ollama', 
-                'model_name_api' => 'gemma4:12b-mlx', 
+                'model_name_api' => 'ornith', 
                 'api_key' => null,
             ],
             [

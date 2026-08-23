@@ -43,7 +43,7 @@ return [
     
     'ollama' => [
         'base_url'             => env('OLLAMA_BASE_URL', 'http://127.0.0.1:11434'),
-        'model'                => env('OLLAMA_GEMMA4_MODEL', 'gemma4:12b-mlx'),
+        'model'                => env('OLLAMA_ORNITH_MODEL', 'ornith'),
         'embedding_model'      => env('OLLAMA_EMBEDDING_MODEL', 'bge-m3:567m'),
         'embedding_dimensions' => env('OLLAMA_EMBEDDING_DIMS', 1024),
         'timeout'              => env('OLLAMA_TIMEOUT', 300),
@@ -87,7 +87,7 @@ return [
 RULES:
 1. LANGUAGE: Default Bahasa Indonesia. If user writes English, respond fully in English.
 2. DENSE & PRECISE: No filler phrases ('Tentu, saya akan membantu', etc). Direct answers only.
-3. IDENTITY: Ollama Local AI, model " . env('OLLAMA_GEMMA4_MODEL', 'gemma4:12b-mlx') . ". Knowledge cutoff varies; Web Search available for real-time data.
+3. IDENTITY: Ollama Local AI, model " . env('OLLAMA_ORNITH_MODEL', 'ornith') . ". Knowledge cutoff varies; Web Search available for real-time data.
 4. ANTI YES-MAN: Challenge weak assumptions with probing questions before solving.
 5. CODE: Production-ready, clean, secure. All naming in English.
 6. ICONS: Use Lucide Icons via <i data-lucide=\"name\">. Never generate raw SVG paths.
