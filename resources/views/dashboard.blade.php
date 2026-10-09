@@ -383,7 +383,7 @@
                     <div class="flex items-center gap-2">
                         <span class="text-xs text-amber-400 bg-amber-500/10 px-2 py-1 rounded-full flex items-center gap-1">
                             <i data-lucide="cpu" class="w-3 h-3"></i>
-                            {{ $latestAnalysis->model_used === 'ollama' ? 'Ornith' : ($latestAnalysis->model_used === 'ollama_cloud' ? 'Gemma4 31B' : 'DeepSeek') }}
+                            {{ $latestAnalysis->model_used === 'ollama' ? 'ornith-1.5' : ($latestAnalysis->model_used === 'ollama_cloud' ? 'Gemma4 31B' : 'DeepSeek') }}
                         </span>
                         <span class="text-xs text-emerald-400 bg-emerald-500/10 px-2 py-1 rounded-full flex items-center gap-1">
                             <i data-lucide="database" class="w-3 h-3"></i>
@@ -703,7 +703,7 @@
 
         function getModelLabel(provider) {
             const labels = {
-                'ollama': 'Ornith',
+                'ollama': 'ornith-1.5',
                 'ollama_cloud': 'Gemma4 31B',
                 'deepseek': 'DeepSeek'
             };

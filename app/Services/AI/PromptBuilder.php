@@ -31,7 +31,7 @@ class PromptBuilder
         if (isset($modelMapping[$modelName])) {
             $activeModel = config($modelMapping[$modelName]);
         } else {
-            $activeModel = $modelName ?? config('services.ollama.model', 'ornith');
+            $activeModel = $modelName ?? config('services.ollama.model', 'ornith-1.5');
         }
         
         // 2. Determine Persona & System Rules
@@ -76,6 +76,19 @@ class PromptBuilder
             'reason' => $classification['reason'],
         ]);
         
+        // Handle explicit web search enabled by user
+        $userEnabledWebSearch = !empty($options['use_web_search']);
+        if ($userEnabledWebSearch) {
+            $classification['type'] = QueryClassifier::TYPE_LATEST_DATA;
+            $classification['use_rag'] = false;
+            $classification['suggest_web_search'] = false;
+            \Log::info("Web Search is active - prioritizing live web search context over internal RAG");
+            $brainKnowledge = "";
+            $usedInternalData = false;
+            $matchedKeywords = [];
+            goto assembleSystemPrompt;
+        }
+
         // Handle GENERAL queries - use AI model knowledge directly
         if ($classification['type'] === QueryClassifier::TYPE_GENERAL && !$classification['use_rag']) {
             \Log::info("Query classified as GENERAL - using AI model knowledge directly");
@@ -428,6 +441,18 @@ class PromptBuilder
         // Label for RAG goto (when vector search succeeds, it jumps here)
         assembleSystemPrompt:
         
+        // Live web search instruction vs Strict Anti-hallucination rule
+        $webSearchRule = "
+
+CRITICAL INSTRUCTION (LIVE WEB SEARCH PROTOCOL - HIGHEST PRIORITY):
+Real-time web search results from the internet are provided in the user's message context under '=== LIVE WEB SEARCH RESULTS ==='.
+Follow these rules STRICTLY:
+1. Use the live web search results as your primary, factual source of truth to answer the user's question accurately and comprehensively.
+2. DO NOT claim that you lack real-time access, internet access, or that your knowledge is cut off, because the live search results have already been fetched and provided.
+3. Synthesize the findings into clear, direct, and well-structured points.
+4. Cite sources, publications, or URLs mentioned in the search results when helpful.
+";
+
         // STRICT ANTI-HALLUCINATION INSTRUCTION (Critical for RAG accuracy)
         $antiHallucinationRule = "
 
@@ -440,6 +465,8 @@ You are answering based on the provided CONTEXT above. Follow these rules STRICT
 5. When the context shows [USANG] (deprecated) vs [WP X.X+] (current), ALWAYS recommend the current approach unless user specifically asks about legacy code.
 6. If the information is NOT in the provided CONTEXT, say: 'Informasi tersebut tidak ada dalam dokumen referensi saya.' DO NOT INVENT OR GUESS.
 ";
+
+        $selectedRule = !empty($options['use_web_search']) ? $webSearchRule : $antiHallucinationRule;
         
         // DeepSeek prefix caching: static rules FIRST (identical across requests),
         // then dynamic RAG content as a separate system message.
@@ -447,7 +474,7 @@ You are answering based on the provided CONTEXT above. Follow these rules STRICT
         
         if ($isDeepSeek && !empty($brainKnowledge)) {
             // Static prefix (cacheable by DeepSeek)
-            $staticPrefix = $coreRules . "\n\n" . $antiHallucinationRule . "\nPERHATIAN KHUSUS UNTUK SESI INI:\n" . $personaStyle;
+            $staticPrefix = $coreRules . "\n\n" . $selectedRule . "\nPERHATIAN KHUSUS UNTUK SESI INI:\n" . $personaStyle;
             $payload[] = [
                 'role' => 'system',
                 'content' => $staticPrefix
@@ -458,7 +485,7 @@ You are answering based on the provided CONTEXT above. Follow these rules STRICT
                 'content' => $brainKnowledge
             ];
         } else {
-            $systemContent = $coreRules . "\n\n" . $brainKnowledge . $antiHallucinationRule . "\nPERHATIAN KHUSUS UNTUK SESI INI:\n" . $personaStyle;
+            $systemContent = $coreRules . "\n\n" . $brainKnowledge . $selectedRule . "\nPERHATIAN KHUSUS UNTUK SESI INI:\n" . $personaStyle;
             $payload[] = [
                 'role' => 'system',
                 'content' => $systemContent
@@ -594,10 +621,19 @@ You are answering based on the provided CONTEXT above. Follow these rules STRICT
                 $finalContent .= "\n\n=== ATTACHED CODE ===\n" . $msg->context_code;
             }
 
-            $historyPayload[] = [
+            $messagePayload = [
                 'role' => $msg->sender_type === 'bot' ? 'assistant' : 'user',
                 'content' => $finalContent,
             ];
+
+            if (!empty($msg->metadata)) {
+                $meta = json_decode($msg->metadata, true);
+                if (!empty($meta['images'])) {
+                    $messagePayload['images'] = $meta['images'];
+                }
+            }
+
+            $historyPayload[] = $messagePayload;
 
             // Update counter limit
             $currentChars += $totalMessageLength;

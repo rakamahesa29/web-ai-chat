@@ -32,6 +32,8 @@ class WebSearchAgent
             $searchQuery .= ' ' . $currentYear;
         }
 
+        Log::info("WebSearchAgent: Starting search", ['query' => $searchQuery]);
+
         try {
             $response = Http::timeout(15)
                 ->withHeaders([
@@ -53,8 +55,15 @@ class WebSearchAgent
             $results = $response->json();
             
             if (!isset($results['results']) || count($results['results']) === 0) {
+                Log::info("WebSearchAgent: Search succeeded with 0 results", ['query' => $searchQuery]);
                 return "=== LIVE WEB SEARCH RESULTS ===\nSYSTEM INFO: Pencarian berhasil, namun tidak ditemukan artikel/website yang relevan.";
             }
+
+            Log::info("WebSearchAgent: Search succeeded", [
+                'query' => $searchQuery,
+                'results_count' => count($results['results']),
+                'has_answer' => !empty($results['answer']),
+            ]);
 
             $formattedContext = "=== LIVE WEB SEARCH RESULTS ===\n";
             $formattedContext .= "Gunakan referensi data terkini dari internet ini untuk menjawab pertanyaan:\n\n";

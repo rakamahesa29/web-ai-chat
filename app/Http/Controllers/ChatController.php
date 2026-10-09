@@ -90,9 +90,9 @@ class ChatController extends Controller
 
         // 2. Eksekusi Web Search Agent jika toggle aktif
         if ($request->boolean('use_web_search')) {
+            $searchQuery = $this->resolveSearchQuery($request->message, $room);
             $searchAgent = new WebSearchAgent();
-            // Lakukan pencarian ke Google menggunakan pertanyaan user
-            $searchContext = $searchAgent->search($request->message);
+            $searchContext = $searchAgent->search($searchQuery);
         }
 
         if ($room->model !== $request->model_name) {
@@ -190,9 +190,10 @@ class ChatController extends Controller
 
         \Illuminate\Support\Facades\Cache::put($lockKey, true, now()->addMinutes(5));
 
-        if ($request->boolean('use_web_search') && empty($message->search_context)) {
+        if ($request->boolean('use_web_search')) {
+            $searchQuery = $this->resolveSearchQuery($message->content, $room);
             $searchAgent = new WebSearchAgent();
-            $searchContext = $searchAgent->search($message->content);
+            $searchContext = $searchAgent->search($searchQuery);
             $message->update(['search_context' => $searchContext]);
         }
 
@@ -484,5 +485,96 @@ class ChatController extends Controller
             'status' => 'success',
             'message' => 'Proses background berhasil dihentikan. Anda dapat mengirim pesan kembali.'
         ]);
+    }
+
+    /**
+     * Resolve the actual search query when the user sends a follow-up or meta command
+     * (e.g. "coba cari lagi", "cari lagi", "bisakah kamu cari menggunakan web search ?").
+     */
+    private function resolveSearchQuery(string $message, Room $room): string
+    {
+        $clean = trim(strtolower($message));
+        $clean = preg_replace('/[?!.,]+$/', '', $clean);
+
+        // List of short follow-up or meta commands
+        $followUpPhrases = [
+            'coba cari lagi', 'cari lagi', 'coba lagi', 'search lagi', 'cari ulang',
+            'coba cari', 'carikan', 'tolong cari', 'tolong carikan', 'coba search',
+            'coba cari di web', 'cari di web', 'cari di internet', 'cari di google',
+            'coba googling', 'googling lagi', 'browsing lagi', 'search ulang',
+            'search again', 'try again', 'look it up', 'find again',
+            'hasilnya tidak relevan', 'hasilnya belum sesuai', 'kurang relevan',
+        ];
+
+        $isMetaOrFollowUp = false;
+        foreach ($followUpPhrases as $phrase) {
+            if ($clean === $phrase || str_starts_with($clean, $phrase . ' ') || str_ends_with($clean, ' ' . $phrase)) {
+                $isMetaOrFollowUp = true;
+                break;
+            }
+        }
+
+        $metaPatterns = [
+            '/^(bisakah|bisa|tolong|coba|mohon)?\s*(kamu\s+)?(cari|carikan|search|browsing|googling)\s*(lagi|ulang|kembali|dong|ya|please)?\s*$/i',
+            '/^(bisakah|bisa|tolong|coba|mohon)?\s*(kamu\s+)?(cari|carikan|search|browsing|googling)?\s*(lagi|ulang)?\s*(menggunakan|lewat|pake|pakai|di|via)?\s*(web|internet|google|online|web\s*search)\s*(lagi|dong|ya|please)?$/i',
+            '/^(coba|tolong|bisa)?\s*(cari|search)\s*(lagi|ulang|kembali)\s*(di\s*web|di\s*internet|di\s*google)?$/i',
+            '/^(can you|could you|please)?\s*(search|look\s*up|google)\s*(this|that|again)?\s*(on|using|via)?\s*(web|the web|google|internet)?\s*(again|please)?$/i',
+        ];
+
+        if (!$isMetaOrFollowUp) {
+            foreach ($metaPatterns as $pattern) {
+                if (preg_match($pattern, $clean)) {
+                    $isMetaOrFollowUp = true;
+                    break;
+                }
+            }
+        }
+
+        if ($isMetaOrFollowUp) {
+            $pastUserMessages = $room->messages()
+                ->where('sender_type', 'user')
+                ->latest()
+                ->take(10)
+                ->get();
+
+            foreach ($pastUserMessages as $pastMsg) {
+                $pastContent = trim($pastMsg->content);
+                if (empty($pastContent) || $pastContent === $message) {
+                    continue;
+                }
+
+                $pastClean = preg_replace('/[?!.,]+$/', '', strtolower($pastContent));
+                $isPastMeta = false;
+
+                foreach ($followUpPhrases as $phrase) {
+                    if ($pastClean === $phrase || str_starts_with($pastClean, $phrase . ' ') || str_ends_with($pastClean, ' ' . $phrase)) {
+                        $isPastMeta = true;
+                        break;
+                    }
+                }
+
+                if (!$isPastMeta) {
+                    foreach ($metaPatterns as $pattern) {
+                        if (preg_match($pattern, $pastClean)) {
+                            $isPastMeta = true;
+                            break;
+                        }
+                    }
+                }
+
+                if ($isPastMeta) {
+                    continue;
+                }
+
+                \Log::info("WebSearch: Resolved meta-query to previous substantive topic", [
+                    'original' => $message,
+                    'resolved_query' => $pastContent
+                ]);
+
+                return $pastContent;
+            }
+        }
+
+        return $message;
     }
 }

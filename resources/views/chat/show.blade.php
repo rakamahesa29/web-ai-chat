@@ -290,7 +290,7 @@
                     <input type="hidden" name="use_web_search" id="use_web_search_input" value="0">
                     <input type="hidden" name="persona_override" id="persona_override_input" value="">
                     <input type="hidden" name="deepseek_pro" id="deepseek_pro_input" value="0">
-                    <input type="file" id="fileUploadInput" class="hidden" accept=".pdf,.doc,.docx,.txt,.php,.js,.py,.html,.css,.json,.xml,.csv,.md" onchange="handleFileUpload(event)">
+                    <input type="file" id="fileUploadInput" class="hidden" accept=".pdf,.doc,.docx,.txt,.php,.js,.py,.html,.css,.json,.xml,.csv,.md,image/png,image/jpeg,image/gif,image/webp" onchange="handleFileUpload(event)">
 
                     <!-- Attachment Indicator -->
                     <div id="attachment-indicator" class="hidden mb-2">
@@ -357,7 +357,7 @@
                 <div class="hermes-status-item">
                     <i data-lucide="cpu" class="w-3.5 h-3.5"></i>
                     <span id="status-model">
-                        {{ $currentModel === 'deepseek' ? 'DeepSeek' : ($currentModel === 'ollama_cloud' ? 'Gemma4 31-Cloud' : 'Ornith') }}
+                        {{ $currentModel === 'deepseek' ? 'DeepSeek' : ($currentModel === 'ollama_cloud' ? 'Gemma4 31-Cloud' : 'ornith-1.5') }}
                     </span>
                 </div>
                 <div class="hermes-status-item">
@@ -422,6 +422,7 @@
         let isWebSearchSuggestion = false;
         let currentQueryType = null;
         let activeAbortController = null;
+        let attachedImages = [];
 
         function parseMarkdownSafe(text) {
             if (!text) return '';
@@ -636,12 +637,23 @@
             scrollToBottom();
 
             const formData = new FormData(this);
-            formData.set('message', messageValue || "Please analyze the attached code.");
+            formData.set('message', messageValue || "Please analyze the attached content.");
             formData.set('context_code', codeValue);
             formData.set('use_web_search', isSearchActive ? '1' : '0');
             formData.set('deepseek_pro', isDeepseekPro ? '1' : '0');
 
+            attachedImages.forEach((imgBase64, index) => {
+                formData.append(`images[${index}]`, imgBase64);
+            });
+
             clearContextCode();
+            // Clear images
+            attachedImages = [];
+            const attachmentTextEl = document.getElementById('attachment-text');
+            if (attachmentTextEl && !codeValue) {
+                document.getElementById('attachment-indicator').classList.add('hidden');
+                attachmentTextEl.innerText = '';
+            }
             
             if (isWebSearchEnabled) toggleWebSearch();
 
@@ -734,6 +746,8 @@
                                         console.log('Query classified as:', data.query_type, '-', data.reason);
                                     } else if (data.status === 'searching_internal') {
                                         loadingText.innerHTML = `Searching: <span class="text-hermes-accent">${data.keywords.join(', ')}</span>`;
+                                    } else if (data.status === 'searching_web') {
+                                        loadingText.innerHTML = `<span class="text-emerald-400">🌐</span> ${data.message || 'Mencari informasi terkini di web...'}`;
                                     } else if (data.status === 'using_model_knowledge') {
                                         loadingText.innerText = "Using AI knowledge...";
                                     } else if (data.status === 'thinking') {
@@ -1017,6 +1031,7 @@
         function clearContextCode() {
             const contextInput = document.getElementById('context_code_input');
             if (contextInput) contextInput.value = '';
+            attachedImages = [];
             const attachmentIndicator = document.getElementById('attachment-indicator');
             if (attachmentIndicator) attachmentIndicator.classList.add('hidden');
         }
@@ -1026,6 +1041,18 @@
             const file = event.target.files[0];
             if (!file) return;
             event.target.value = '';
+
+            if (file.type.startsWith('image/')) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    attachedImages.push(e.target.result);
+                    document.getElementById('attachment-indicator').classList.remove('hidden');
+                    const textEl = document.getElementById('attachment-text');
+                    textEl.innerText = (!textEl.innerText || textEl.innerText === 'Attached') ? file.name : textEl.innerText + ', ' + file.name;
+                };
+                reader.readAsDataURL(file);
+                return;
+            }
 
             const formData = new FormData();
             formData.append('file', file);
@@ -1637,7 +1664,7 @@
         
         document.getElementById('modelSelect').addEventListener('change', function(e) {
             document.getElementById('selectedModel').value = e.target.value;
-            statusModel.textContent = e.target.value === 'deepseek' ? 'DeepSeek' : e.target.value === 'ollama_cloud' ? 'Gemma4 31B Cloud' : 'Ornith';
+            statusModel.textContent = e.target.value === 'deepseek' ? 'DeepSeek' : e.target.value === 'ollama_cloud' ? 'Gemma4 31B Cloud' : 'ornith-1.5';
 
             const url = new URL(window.location);
             url.searchParams.set('model', e.target.value);
