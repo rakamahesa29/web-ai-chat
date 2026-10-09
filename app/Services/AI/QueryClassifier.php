@@ -20,15 +20,25 @@ class QueryClassifier
     const TYPE_LATEST_DATA = 'latest_data';
 
     private array $latestDataIndicators = [
-        // Indonesian - phrases that clearly indicate need for latest data
+        // Indonesian - phrases and temporal indicators for real-time / latest data
         'terbaru', 'terkini', 'berita terbaru', 'kabar terbaru',
         'update terbaru', 'versi terbaru', 'rilis terbaru', 
         'tren saat ini', 'trending sekarang',
+        'info terkini', 'isu terkini', 'viral sekarang',
+        'hari ini', 'kemarin', 'minggu ini', 'bulan ini', 'tahun ini', 'saat ini',
+        'apa yang terjadi', 'ada kejadian apa', 'ada apa di', 'terjadi apa',
+        'cuaca hari ini', 'kurs hari ini', 'skor pertandingan', 'jadwal pertandingan',
+        
+        // Web search explicitly requested in Indonesian
+        'web search', 'cari di web', 'cari di internet', 'cari di google', 
+        'cari lewat web', 'cari menggunakan web', 'googling', 'search web', 'browsing',
         
         // English - phrases that clearly indicate need for latest data
         'latest news', 'latest version', 'latest release', 'latest update',
         'newest version', 'most recent', 'current news', 'current trends',
         'trending now', 'what\'s new in',
+        'today', 'yesterday', 'this week', 'this month', 'this year', 'right now',
+        'current events', 'what happened', 'breaking news',
         
         // Year-specific queries asking about current state
         'in 2024', 'in 2025', 'in 2026', 'in 2027',
@@ -110,6 +120,20 @@ class QueryClassifier
     {
         $queryLower = strtolower($query);
         
+        // Explicit web search intent query (e.g. "bisakah kamu cari menggunakan web search ?")
+        // Should immediately trigger web search recommendation/flow and not get hijacked by internal RAG
+        if (preg_match('/\b(web\s*search|cari\s*(di|ke|lewat|menggunakan|pakai)?\s*(web|internet|google)|search\s*web|googling|browsing)\b/i', $queryLower)) {
+            $hasBrainData = $this->checkBrainDataAvailability($queryLower, $personaKey);
+            Log::info("QueryClassifier: Explicit web search intent detected", ['query' => substr($query, 0, 100)]);
+            return [
+                'type' => self::TYPE_LATEST_DATA,
+                'use_rag' => false,
+                'suggest_web_search' => true,
+                'brain_data' => $hasBrainData,
+                'reason' => 'Query explicitly requests web search or internet lookup',
+            ];
+        }
+
         // First check if this is a task/instruction query (user asking AI to do something)
         // These should NEVER trigger web search suggestion
         $isTaskInstruction = $this->detectTaskInstructionQuery($query);
@@ -127,6 +151,7 @@ class QueryClassifier
             'isDomainSpecific' => $isDomainSpecific,
             'isGeneralConversation' => $isGeneralConversation,
             'hasBrainData' => $hasBrainData['found'],
+            'brainRelevance' => $hasBrainData['relevance'] ?? 0,
         ]);
 
         // Task/instruction queries - user is asking AI to do something
@@ -142,12 +167,13 @@ class QueryClassifier
         }
 
         if ($isLatestData) {
+            $hasRelevantInternalData = $hasBrainData['found'] && ($hasBrainData['relevance'] >= 0.6);
             return [
                 'type' => self::TYPE_LATEST_DATA,
-                'use_rag' => $hasBrainData['found'],
+                'use_rag' => $hasRelevantInternalData,
                 'suggest_web_search' => true,
                 'brain_data' => $hasBrainData,
-                'reason' => $hasBrainData['found'] 
+                'reason' => $hasRelevantInternalData 
                     ? 'Found internal data but query asks for latest information'
                     : 'No internal data and query asks for latest information',
             ];
@@ -200,6 +226,11 @@ class QueryClassifier
      */
     private function detectTaskInstructionQuery(string $query): bool
     {
+        // If query asks for web search, it's not a code task instruction
+        if (preg_match('/\b(web\s*search|cari\s*(di|ke|lewat|menggunakan|pakai)?\s*(web|internet|google)|search\s*web|googling|browsing)\b/i', $query)) {
+            return false;
+        }
+
         foreach ($this->taskInstructionPatterns as $pattern) {
             if (preg_match($pattern, $query)) {
                 return true;
@@ -224,12 +255,32 @@ class QueryClassifier
      */
     private function detectLatestDataQuery(string $queryLower): bool
     {
+        // Don't treat simple greetings or personal questions as latest data
+        if (preg_match('/^(hi|hello|halo|hai|hey|apa\s+kabar|how\s+are\s+you|siapa\s+kamu|who\s+are\s+you)/i', trim($queryLower))) {
+            return false;
+        }
+
         foreach ($this->latestDataIndicators as $indicator) {
             if (str_contains($queryLower, strtolower($indicator))) {
                 return true;
             }
         }
         
+        // Match month + year (e.g. "september 2026", "bulan september 2026")
+        if (preg_match('/\b(januari|februari|maret|april|mei|juni|juli|agustus|september|oktober|november|desember|january|february|march|april|may|june|july|august|september|october|november|december)\s*20\d{2}\b/i', $queryLower)) {
+            return true;
+        }
+
+        // Match current or future years (2024 to 2039)
+        if (preg_match('/\b(202[4-9]|203\d)\b/', $queryLower)) {
+            return true;
+        }
+
+        // Questions about real-world current events
+        if (preg_match('/\b(ada\s+kejadian|ada\s+apa\s+di|apa\s+yang\s+terjadi|berita\s+tentang|kabar\s+tentang|siapa\s+juara|siapa\s+pemenang)\b/i', $queryLower)) {
+            return true;
+        }
+
         if (preg_match('/\b(versi|version)\s*(berapa|terbaru|latest|what)/i', $queryLower)) {
             return true;
         }
@@ -329,9 +380,10 @@ class QueryClassifier
         }
         
         $relevance = min(1.0, $matchCount / max(1, $totalKeywords * 2));
+        $isFound = $potentialMatches->isNotEmpty() && $relevance >= 0.5;
         
         return [
-            'found' => true,
+            'found' => $isFound,
             'relevance' => round($relevance, 2),
             'matches' => $potentialMatches->count(),
             'titles' => $potentialMatches->pluck('title')->take(3)->toArray(),
@@ -349,7 +401,10 @@ class QueryClassifier
         $stopwords = [
             'yang', 'dan', 'di', 'ke', 'dari', 'ini', 'itu', 'untuk', 'dengan', 'dalam',
             'pada', 'adalah', 'sebagai', 'apakah', 'bagaimana', 'tolong', 'saya', 'kamu',
-            'bisa', 'tidak', 'ada', 'apa', 'contoh', 'tentang', 'ingin', 'dulu', 'juga',
+            'bisa', 'bisakah', 'tidak', 'ada', 'apa', 'contoh', 'tentang', 'ingin', 'dulu', 'juga',
+            'coba', 'mohon', 'cari', 'carikan', 'mencari', 'pencarian', 'search', 'searching',
+            'googling', 'web', 'internet', 'google', 'online', 'pakai', 'menggunakan', 'lewat', 'via',
+            'tanya', 'tanyakan', 'bulan', 'tahun', 'hari',
             'the', 'a', 'an', 'is', 'are', 'was', 'were', 'be', 'been', 'being',
             'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would', 'could', 'should',
             'can', 'you', 'your', 'me', 'my', 'we', 'our', 'they', 'their', 'he', 'she', 'it',

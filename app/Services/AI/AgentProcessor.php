@@ -60,7 +60,11 @@ class AgentProcessor
             $role = ($msg['role'] ?? '') === 'assistant' ? 'assistant' : 'user';
             $messages[] = ['role' => $role, 'content' => $msg['content'] ?? ''];
         }
-        $messages[] = ['role' => 'user', 'content' => $this->buildUserPrompt($userMessage)];
+        $lastUserMsg = ['role' => 'user', 'content' => $this->buildUserPrompt($userMessage)];
+        if (!empty($options['images'])) {
+            $lastUserMsg['images'] = $options['images'];
+        }
+        $messages[] = $lastUserMsg;
 
         $phase1Options = $options;
         $adapter = ProviderFactory::make($modelName, $phase1Options);

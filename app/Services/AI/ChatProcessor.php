@@ -40,10 +40,24 @@ class ChatProcessor
             $history = [];
             $msgs = $recentMessages->slice(0, -1); // all except last
             foreach ($msgs as $msg) {
-                $history[] = [
+                $payload = [
                     'role' => $msg->sender_type === 'user' ? 'user' : 'assistant',
                     'content' => $msg->content,
                 ];
+                if (!empty($msg->metadata)) {
+                    $meta = json_decode($msg->metadata, true);
+                    if (!empty($meta['images'])) {
+                        $payload['images'] = $meta['images'];
+                    }
+                }
+                $history[] = $payload;
+            }
+
+            if ($recentMessages->last() && !empty($recentMessages->last()->metadata)) {
+                $meta = json_decode($recentMessages->last()->metadata, true);
+                if (!empty($meta['images'])) {
+                    $options['images'] = $meta['images'];
+                }
             }
 
             $agentProcessor = new AgentProcessor();
@@ -139,8 +153,22 @@ class ChatProcessor
                 ];
             }
             
-            // Emit internal search status if using RAG (but not if JIT already showed its own statuses)
-            if ($usedInternalData && empty($jitContext)) {
+            $userEnabledWebSearch = $options['use_web_search'] ?? false;
+            $forceLocal = $options['force_local'] ?? false;
+
+            // Emit web search status or internal search status
+            if ($userEnabledWebSearch) {
+                yield [
+                    'type' => 'meta',
+                    'status' => 'searching_web',
+                    'message' => 'Mencari informasi terkini di web...'
+                ];
+                
+                yield [
+                    'type' => 'meta',
+                    'status' => 'thinking'
+                ];
+            } elseif ($usedInternalData && empty($jitContext)) {
                 yield [
                     'type' => 'meta',
                     'status' => 'searching_internal',
@@ -169,11 +197,8 @@ class ChatProcessor
             // - User explicitly enabled web search
             // - JIT RAG is active
             // - force_local is true (user clicked "Gunakan Pengetahuan AI")
-            $userEnabledWebSearch = $options['use_web_search'] ?? false;
-            $forceLocal = $options['force_local'] ?? false;
-            
             if ($suggestWebSearch && empty($jitContext) && $classification['type'] === QueryClassifier::TYPE_LATEST_DATA && !$userEnabledWebSearch && !$forceLocal) {
-                $hasInternalData = $classification['brain_data']['found'] ?? false;
+                $hasInternalData = ($classification['brain_data']['found'] ?? false) && (($classification['brain_data']['relevance'] ?? 0) >= 0.5);
                 
                 if (!$hasInternalData) {
                     yield [
@@ -213,7 +238,7 @@ class ChatProcessor
             // After streaming completes, check if we should suggest web search for latest data
             // Skip if force_local is true (user explicitly chose to use AI knowledge)
             if ($suggestWebSearch && empty($jitContext) && $classification['type'] === QueryClassifier::TYPE_LATEST_DATA && !$userEnabledWebSearch && !$forceLocal) {
-                $hasInternalData = $classification['brain_data']['found'] ?? false;
+                $hasInternalData = ($classification['brain_data']['found'] ?? false) && (($classification['brain_data']['relevance'] ?? 0) >= 0.5);
                 
                 if ($hasInternalData) {
                     yield [

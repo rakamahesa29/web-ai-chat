@@ -129,19 +129,36 @@ class ChatApiController extends Controller
 
         $request->validate([
             'message'        => 'required|string',
-            'model'          => 'sometimes|string|in:ollama,ollama_cloud,deepseek',
+            'model'          => 'sometimes|string|in:ollama,ollama_cloud,deepseek,anthropic',
             'use_web_search' => 'sometimes|boolean',
             'deepseek_pro'   => 'sometimes|boolean',
             'skripsi_mode'   => 'sometimes|boolean',
             'workspace_path' => 'sometimes|string|nullable',
             'chat_mode'      => 'sometimes|string|in:ask,agent',
+            'images'         => 'sometimes|array',
+            'images.*'       => 'string', // Base64 strings
         ]);
+
+        // Construct metadata if images are present
+        $metadata = [];
+        if ($request->has('images') && !empty($request->images)) {
+            $metadata['images'] = $request->images;
+        }
+
+        $searchContext = null;
+        if ($request->boolean('use_web_search')) {
+            $searchQuery = $this->resolveSearchQuery($request->message, $room);
+            $searchAgent = new \App\Services\Search\WebSearchAgent();
+            $searchContext = $searchAgent->search($searchQuery);
+        }
 
         // Save user message
         $userMessage = $room->messages()->create([
-            'sender_id'   => $request->user()->id,
-            'sender_type' => 'user',
-            'content'     => $request->message,
+            'sender_id'      => $request->user()->id,
+            'sender_type'    => 'user',
+            'content'        => $request->message,
+            'search_context' => $searchContext,
+            'metadata'       => empty($metadata) ? null : json_encode($metadata),
         ]);
 
         // Process with AI (streaming)
@@ -417,5 +434,94 @@ class ChatApiController extends Controller
             'tokens_used'        => $msg->tokens_used,
             'created_at'         => $msg->created_at?->toISOString(),
         ];
+    }
+
+    /**
+     * Resolve the actual search query when the user sends a follow-up or meta command
+     */
+    private function resolveSearchQuery(string $message, Room $room): string
+    {
+        $clean = trim(strtolower($message));
+        $clean = preg_replace('/[?!.,]+$/', '', $clean);
+
+        $followUpPhrases = [
+            'coba cari lagi', 'cari lagi', 'coba lagi', 'search lagi', 'cari ulang',
+            'coba cari', 'carikan', 'tolong cari', 'tolong carikan', 'coba search',
+            'coba cari di web', 'cari di web', 'cari di internet', 'cari di google',
+            'coba googling', 'googling lagi', 'browsing lagi', 'search ulang',
+            'search again', 'try again', 'look it up', 'find again',
+            'hasilnya tidak relevan', 'hasilnya belum sesuai', 'kurang relevan',
+        ];
+
+        $isMetaOrFollowUp = false;
+        foreach ($followUpPhrases as $phrase) {
+            if ($clean === $phrase || str_starts_with($clean, $phrase . ' ') || str_ends_with($clean, ' ' . $phrase)) {
+                $isMetaOrFollowUp = true;
+                break;
+            }
+        }
+
+        $metaPatterns = [
+            '/^(bisakah|bisa|tolong|coba|mohon)?\s*(kamu\s+)?(cari|carikan|search|browsing|googling)\s*(lagi|ulang|kembali|dong|ya|please)?\s*$/i',
+            '/^(bisakah|bisa|tolong|coba|mohon)?\s*(kamu\s+)?(cari|carikan|search|browsing|googling)?\s*(lagi|ulang)?\s*(menggunakan|lewat|pake|pakai|di|via)?\s*(web|internet|google|online|web\s*search)\s*(lagi|dong|ya|please)?$/i',
+            '/^(coba|tolong|bisa)?\s*(cari|search)\s*(lagi|ulang|kembali)\s*(di\s*web|di\s*internet|di\s*google)?$/i',
+            '/^(can you|could you|please)?\s*(search|look\s*up|google)\s*(this|that|again)?\s*(on|using|via)?\s*(web|the web|google|internet)?\s*(again|please)?$/i',
+        ];
+
+        if (!$isMetaOrFollowUp) {
+            foreach ($metaPatterns as $pattern) {
+                if (preg_match($pattern, $clean)) {
+                    $isMetaOrFollowUp = true;
+                    break;
+                }
+            }
+        }
+
+        if ($isMetaOrFollowUp) {
+            $pastUserMessages = $room->messages()
+                ->where('sender_type', 'user')
+                ->latest()
+                ->take(10)
+                ->get();
+
+            foreach ($pastUserMessages as $pastMsg) {
+                $pastContent = trim($pastMsg->content);
+                if (empty($pastContent) || $pastContent === $message) {
+                    continue;
+                }
+
+                $pastClean = preg_replace('/[?!.,]+$/', '', strtolower($pastContent));
+                $isPastMeta = false;
+
+                foreach ($followUpPhrases as $phrase) {
+                    if ($pastClean === $phrase || str_starts_with($pastClean, $phrase . ' ') || str_ends_with($pastClean, ' ' . $phrase)) {
+                        $isPastMeta = true;
+                        break;
+                    }
+                }
+
+                if (!$isPastMeta) {
+                    foreach ($metaPatterns as $pattern) {
+                        if (preg_match($pattern, $pastClean)) {
+                            $isPastMeta = true;
+                            break;
+                        }
+                    }
+                }
+
+                if ($isPastMeta) {
+                    continue;
+                }
+
+                \Log::info("WebSearch API: Resolved meta-query to previous substantive topic", [
+                    'original' => $message,
+                    'resolved_query' => $pastContent
+                ]);
+
+                return $pastContent;
+            }
+        }
+
+        return $message;
     }
 }

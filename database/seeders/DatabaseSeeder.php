@@ -39,7 +39,7 @@ class DatabaseSeeder extends Seeder
             [
                 'model_name' => 'ollama', 
                 'provider' => 'ollama', 
-                'model_name_api' => 'ornith', 
+                'model_name_api' => 'ornith-1.5', 
                 'api_key' => null,
             ],
             [

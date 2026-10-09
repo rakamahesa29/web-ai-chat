@@ -39,6 +39,16 @@ class ConfigurationManager
                 'is_active'      => $isActive,
                 'api_key'        => config('services.deepseek.api_key'),
             ];
+        } elseif ($modelName === 'anthropic') {
+            $setting = DB::table('settings')->where('key', 'anthropic_enabled')->first();
+            $isActive = $setting ? (bool)$setting->value : true; // Default to true if not in DB yet
+
+            $config = (object) [
+                'provider'       => 'anthropic',
+                'model_name_api' => config('services.anthropic.model'),
+                'is_active'      => $isActive,
+                'api_key'        => config('services.anthropic.api_key'),
+            ];
         } else {
             // Fallback untuk model dari database jika ada
             $config = AiConfig::where('model_name', $modelName)->first();

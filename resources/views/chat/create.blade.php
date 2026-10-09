@@ -29,6 +29,7 @@
                             <option value="Copywriting">Copywriting</option>
                             <option value="Education">Education</option>
                             <option value="Business">Business</option>
+                            <option value="Design & UI/UX">Design & UI/UX</option>
                             <option value="Daily Life">Daily Life</option>
                         </select>
                         <div class="absolute inset-y-0 right-4 flex items-center pointer-events-none text-hermes-muted">
@@ -53,6 +54,7 @@
                             <option value="executive">The Executive (Formal & Business)</option>
                             <option value="education">The Educator (Academic & Structured)</option>
                             <option value="swift-developer">Swift Architect (SwiftUI & Laravel)</option>
+                            <option value="lovable-engineer">Lovable UI/UX Engineer (Frontend & Design)</option>
                         </select>
                         <div class="absolute inset-y-0 right-4 flex items-center pointer-events-none text-hermes-muted">
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

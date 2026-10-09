@@ -26,6 +26,11 @@ class ProviderFactory
                 ($options['chat_mode'] ?? '') === 'agent',
                 $options['response_format'] ?? null
             ),
+            'anthropic' => new \App\Services\AI\Adapters\AnthropicAdapter(
+                $config->api_key,
+                $config->model_name_api,
+                $options['system_prompt'] ?? ''
+            ),
             default => new OllamaAdapter($config->model_name_api),
         };
     }

@@ -191,7 +191,7 @@ PROMPT;
     {
         return match ($this->modelProvider) {
             'ollama' => new OllamaAdapter(
-                config('services.ollama.model', 'ornith')
+                config('services.ollama.model', 'ornith-1.5')
             ),
             'ollama_cloud' => new OllamaCloudAdapter(
                 config('services.ollama_cloud.model', 'gemma4:31b-cloud')
