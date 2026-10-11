@@ -23,9 +23,9 @@ class ChatProcessor
     {
         // ── Agent Mode: delegate to AgentProcessor ──
         $chatMode = $options['chat_mode'] ?? 'ask';
-        $workspacePath = $options['workspace_path'] ?? null;
+        $workspacePath = !empty($options['workspace_path']) ? $options['workspace_path'] : '~/';
 
-        if ($chatMode === 'agent' && $workspacePath) {
+        if ($chatMode === 'agent') {
             $room = Room::findOrFail($roomId);
             
             $agentHistoryLimit = match(true) {

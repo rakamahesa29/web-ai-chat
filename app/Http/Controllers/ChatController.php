@@ -92,7 +92,7 @@ class ChatController extends Controller
         if ($request->boolean('use_web_search')) {
             $searchQuery = $this->resolveSearchQuery($request->message, $room);
             $searchAgent = new WebSearchAgent();
-            $searchContext = $searchAgent->search($searchQuery);
+            $searchContext = $searchAgent->search($searchQuery, $room);
         }
 
         if ($room->model !== $request->model_name) {
@@ -193,7 +193,7 @@ class ChatController extends Controller
         if ($request->boolean('use_web_search')) {
             $searchQuery = $this->resolveSearchQuery($message->content, $room);
             $searchAgent = new WebSearchAgent();
-            $searchContext = $searchAgent->search($searchQuery);
+            $searchContext = $searchAgent->search($searchQuery, $room);
             $message->update(['search_context' => $searchContext]);
         }
 
@@ -296,16 +296,14 @@ class ChatController extends Controller
                                 );
                             }
 
-                            // Dispatch Knowledge Graph extraction job asynchronously
-                            if (config('services.knowledge_graph.enabled', true)) {
-                                ExtractMessageEntities::dispatch(
-                                    $room->id,
-                                    $userMessage->content,
-                                    $cleanContent,
-                                    $botMsg->id,
-                                    $modelName
-                                )->onQueue('knowledge-graph');
-                            }
+                            // Dispatch Knowledge Graph extraction reliably
+                            ExtractMessageEntities::extractNowOrAsync(
+                                $room->id,
+                                $userMessage->content,
+                                $cleanContent,
+                                $botMsg->id,
+                                $modelName
+                            );
                         }
                     }
 

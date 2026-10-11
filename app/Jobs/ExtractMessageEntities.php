@@ -46,6 +46,45 @@ class ExtractMessageEntities implements ShouldQueue
         $this->modelName = $modelName;
     }
 
+    /**
+     * Dispatch extraction immediately or right after HTTP response.
+     * Uses dispatchAfterResponse with sync connection and direct fallback,
+     * ensuring it runs reliably without blocking streaming or requiring queue workers.
+     */
+    public static function extractNowOrAsync(
+        int $roomId, 
+        string $userMessage, 
+        string $botResponse, 
+        ?int $messageId = null,
+        ?string $modelName = null
+    ): void {
+        if (!config('services.knowledge_graph.enabled', true)) {
+            return;
+        }
+
+        try {
+            if (app()->runningInConsole()) {
+                (new static($roomId, $userMessage, $botResponse, $messageId, $modelName))->handle();
+                return;
+            }
+
+            static::dispatchAfterResponse(
+                $roomId,
+                $userMessage,
+                $botResponse,
+                $messageId,
+                $modelName
+            )->onConnection('sync');
+        } catch (\Throwable $e) {
+            Log::warning("ExtractMessageEntities: dispatchAfterResponse failed (" . $e->getMessage() . "), executing directly");
+            try {
+                (new GraphManager())->processMessage($roomId, $userMessage, $botResponse, $messageId, $modelName);
+            } catch (\Throwable $inner) {
+                Log::error("ExtractMessageEntities direct execution failed: " . $inner->getMessage());
+            }
+        }
+    }
+
     public function handle(): void
     {
         Log::info("ExtractMessageEntities: Starting extraction for room {$this->roomId}");

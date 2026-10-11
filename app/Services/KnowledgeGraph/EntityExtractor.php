@@ -54,7 +54,8 @@ PROMPT;
         $prompt = self::EXTRACTION_PROMPT . "\n" . $conversation;
         
         try {
-            $adapter = ProviderFactory::make($modelName ?? 'ollama', ['response_format' => 'json_object']);
+            $chosenModel = $this->resolveActiveModel($modelName);
+            $adapter = ProviderFactory::make($chosenModel, ['response_format' => 'json_object']);
             
             $payload = [
                 ['role' => 'system', 'content' => 'You are a JSON-only response bot. Output only valid JSON, nothing else.'],
@@ -79,13 +80,47 @@ PROMPT;
     }
 
     /**
+     * Resolve an active provider model safely.
+     */
+    private function resolveActiveModel(?string $modelName): string
+    {
+        if (!empty($modelName)) {
+            try {
+                $config = \App\Services\AI\ConfigurationManager::getConfiguration($modelName);
+                if ($config && !empty($config->is_active)) {
+                    return $modelName;
+                }
+            } catch (\Throwable $e) {
+                // fallback to candidate list
+            }
+        }
+
+        $candidates = ['deepseek', 'anthropic', 'ollama', 'ollama_cloud'];
+        foreach ($candidates as $candidate) {
+            try {
+                $config = \App\Services\AI\ConfigurationManager::getConfiguration($candidate);
+                if ($config && !empty($config->is_active)) {
+                    return $candidate;
+                }
+            } catch (\Throwable $e) {
+                continue;
+            }
+        }
+
+        return $modelName ?? 'deepseek';
+    }
+
+    /**
      * Parse LLM response into structured data.
      */
     private function parseResponse(string $response): array
     {
+        // Strip thinking/reasoning blocks (DeepSeek details tag, think tag, etc.)
+        $response = preg_replace('/<details[\s\S]*?<\/details>/i', '', $response);
+        $response = preg_replace('/<think[\s\S]*?<\/think>/i', '', $response);
         $response = trim($response);
         
-        if (preg_match('/```(?:json)?\s*([\s\S]*?)\s*```/', $response, $matches)) {
+        if (preg_match('/```(?:json)?\s*([\s\S]*?)\s*```/i', $response, $matches)) {
             $response = $matches[1];
         }
         

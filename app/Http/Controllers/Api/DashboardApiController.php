@@ -104,7 +104,20 @@ class DashboardApiController extends Controller
 
         $query = KnowledgeNode::orderByDesc('frequency');
         if ($roomId) {
+            $nodeCount = KnowledgeNode::where('room_id', $roomId)->count();
+            if ($nodeCount === 0 && Message::where('room_id', $roomId)->where('graph_indexed', false)->where('sender_type', 'bot')->exists()) {
+                (new \App\Services\KnowledgeGraph\GraphManager())->indexExistingMessages((int)$roomId);
+            }
             $query->where('room_id', $roomId);
+        } else {
+            $totalNodes = KnowledgeNode::count();
+            if ($totalNodes === 0 && Message::where('graph_indexed', false)->where('sender_type', 'bot')->exists()) {
+                $unindexedRoomIds = Message::where('graph_indexed', false)->where('sender_type', 'bot')->distinct()->pluck('room_id');
+                $gm = new \App\Services\KnowledgeGraph\GraphManager();
+                foreach ($unindexedRoomIds as $rId) {
+                    $gm->indexExistingMessages((int)$rId);
+                }
+            }
         }
         $nodes = $query->limit($limit)->get();
         $nodeIds = $nodes->pluck('id')->toArray();

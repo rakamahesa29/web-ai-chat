@@ -18,8 +18,8 @@ class DatabaseSeeder extends Seeder
         // 1. Membuat Akun Admin Utama
         $admin = User::create([
             'name' => 'User',
-            'email' => 'Email@gmail.com',
-            'password' => Hash::make('Password'),
+            'email' => 'rakamahesa29@gmail.com',
+            'password' => Hash::make('@Raka3298'),
             'phone_number' => '+6280000',
             'role' => 'admin',
         ]);

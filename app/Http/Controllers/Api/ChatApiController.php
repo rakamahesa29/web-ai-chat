@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Room;
 use App\Models\Message;
+use App\Jobs\ExtractMessageEntities;
 use App\Services\AI\ChatProcessor;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
@@ -43,6 +44,7 @@ class ChatApiController extends Controller
             'title'         => $request->title,
             'category'      => $request->category ?? 'General',
             'persona'       => $request->persona ?? 'general',
+            'model'         => $request->model ?? 'ollama',
             'system_prompt' => '',
             'memory_config' => json_encode([]),
         ]);
@@ -67,7 +69,7 @@ class ChatApiController extends Controller
     {
         $this->authorizeRoom($room);
 
-        $room->update($request->only(['title', 'category', 'persona']));
+        $room->update($request->only(['title', 'category', 'persona', 'model']));
 
         return response()->json([
             'status' => 'ok',
@@ -149,7 +151,12 @@ class ChatApiController extends Controller
         if ($request->boolean('use_web_search')) {
             $searchQuery = $this->resolveSearchQuery($request->message, $room);
             $searchAgent = new \App\Services\Search\WebSearchAgent();
-            $searchContext = $searchAgent->search($searchQuery);
+            $searchContext = $searchAgent->search($searchQuery, $room);
+        }
+
+        // Persist latest selected model to room in DB
+        if ($request->filled('model') && $room->model !== $request->model) {
+            $room->update(['model' => $request->model]);
         }
 
         // Save user message
@@ -218,6 +225,15 @@ class ChatApiController extends Controller
                         'sender_type' => 'bot',
                         'content'     => $fullResponse,
                     ]);
+
+                    // Extract Knowledge Graph entities
+                    ExtractMessageEntities::extractNowOrAsync(
+                        $room->id,
+                        $userMessage->content,
+                        $fullResponse,
+                        $botMessage->id,
+                        $request->input('model') ?? $room->model
+                    );
 
                     echo "data: " . json_encode([
                         'done'            => true,
@@ -306,6 +322,21 @@ class ChatApiController extends Controller
                         'sender_type' => 'bot',
                         'content'     => $fullResponse,
                     ]);
+
+                    // Extract Knowledge Graph entities for agent response
+                    $latestUserMsg = $room->messages()
+                        ->where('sender_type', 'user')
+                        ->latest('id')
+                        ->first();
+                    $userContent = $latestUserMsg ? $latestUserMsg->content : 'Agent task execution';
+
+                    ExtractMessageEntities::extractNowOrAsync(
+                        $room->id,
+                        $userContent,
+                        $fullResponse,
+                        $botMessage->id,
+                        $room->model
+                    );
 
                     echo "data: " . json_encode([
                         'done'           => true,

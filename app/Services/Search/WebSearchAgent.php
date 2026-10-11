@@ -9,41 +9,51 @@ class WebSearchAgent
 {
     protected $apiKey;
 
-    public function __construct()
+    protected SearchQueryTransformer $transformer;
+
+    public function __construct(?SearchQueryTransformer $transformer = null)
     {
         // Mengambil kunci API Tavily dari config
         $this->apiKey = config('services.tavily.api_key');
+        $this->transformer = $transformer ?? new SearchQueryTransformer();
+    }
+
+    /**
+     * Membersihkan dan mentransformasikan query percakapan secara cerdas (Gemini-grade)
+     * agar mesin pencari menerima kata kunci yang presisi, relevan, dan kontekstual.
+     */
+    public function sanitizeQuery(string $query, ?\App\Models\Room $room = null): string
+    {
+        return $this->transformer->transform($query, $room);
     }
 
     /**
      * Mengeksekusi pencarian ke Tavily API dan mengembalikan ringkasan teks terformat untuk RAG.
      */
-    public function search(string $query): string
+    public function search(string $query, ?\App\Models\Room $room = null): string
     {
         if (empty($this->apiKey)) {
             Log::warning("WebSearchAgent: Kredensial TAVILY_API_KEY belum di-setup di .env");
             return "Fitur pencarian web tidak tersedia saat ini karena masalah konfigurasi server.";
         }
 
-        $currentYear = date('Y');
-        $searchQuery = $query;
-        
-        if (!preg_match('/\b20\d{2}\b/', $query)) {
-            $searchQuery .= ' ' . $currentYear;
-        }
+        $searchQuery = $this->sanitizeQuery($query, $room);
 
-        Log::info("WebSearchAgent: Starting search", ['query' => $searchQuery]);
+        Log::info("WebSearchAgent: Starting search", [
+            'original_query' => $query,
+            'search_query' => $searchQuery,
+        ]);
 
         try {
-            $response = Http::timeout(15)
+            $response = Http::timeout(20)
                 ->withHeaders([
                     'Content-Type' => 'application/json',
                 ])
                 ->post('https://api.tavily.com/search', [
                     'api_key' => $this->apiKey,
                     'query' => $searchQuery,
-                    'search_depth' => 'basic',     
-                    'include_answer' => 'basic',   
+                    'search_depth' => 'advanced',     
+                    'include_answer' => 'advanced',   
                     'max_results' => 4             
                 ]);
 

@@ -46,10 +46,11 @@ class AgentProcessor
     ): \Generator {
         $this->workspacePath = $workspacePath;
 
+        $displayName = ($workspacePath === '/' || empty($workspacePath)) ? 'Full Mac (/)' : basename($workspacePath);
         yield [
             'type'   => 'meta',
             'status' => 'agent_start',
-            'message' => 'Agent mode — ' . basename($workspacePath),
+            'message' => 'Agent mode — ' . $displayName,
         ];
 
         $systemPrompt = $this->buildAgentSystemPrompt();
@@ -85,6 +86,21 @@ class AgentProcessor
             $toolCalls = $this->extractToolCalls($aiResponse);
 
             if (empty($toolCalls)) {
+                $isStalled = $this->isAiStalled($aiResponse, $iteration);
+
+                if ($isStalled) {
+                    Log::warning("AgentProcessor: phase1 AI stalled without tool_call, re-prompting", [
+                        'iteration' => $iteration,
+                        'preview'   => substr($aiResponse, 0, 150),
+                    ]);
+                    $messages[] = ['role' => 'assistant', 'content' => "Menyiapkan berkas berikutnya..."];
+                    $messages[] = [
+                        'role'    => 'user',
+                        'content' => "CRITICAL AUTONOMOUS INSTRUCTION: Anda mengumumkan langkah/berkas berikutnya tetapi TIDAK menyertakan blok `<tool_call>`. JANGAN tulis monolog, penjelasan, atau draft kode di chat. Pengguna ingin Anda bekerja secara otomatis tanpa menunggu kata 'lanjut'. Segera keluarkan blok `<tool_call>` untuk `write_file` SEKARANG juga!"
+                    ];
+                    continue;
+                }
+
                 // No tool calls — final response
                 yield from $this->streamFinalResponse($aiResponse);
                 return;
@@ -162,14 +178,40 @@ class AgentProcessor
             'iteration' => $iteration,
         ];
 
+        // Emit structured checkpoints for Antigravity-style sequence rendering
+        foreach ($toolResults as $r) {
+            $tool = $r['tool'] ?? '';
+            $path = $r['path'] ?? '';
+            $status = $r['status'] ?? 'error';
+            $msg = $r['message'] ?? '';
+            $action = match($tool) {
+                'read_file', 'list_files' => 'explored',
+                'delete_file'             => 'deleted',
+                'write_file'              => (str_contains(strtolower($msg), 'created') || !str_contains(strtolower($msg), 'overwrit') ? 'created' : 'edited'),
+                default                   => 'executed',
+            };
+            yield [
+                'type'        => 'meta',
+                'status'      => 'agent_checkpoint',
+                'action'      => $action,
+                'path'        => $path,
+                'file'        => basename($path),
+                'step'        => $iteration,
+                'status_code' => $status,
+                'message'     => $msg,
+            ];
+        }
+
         // Emit tool execution results as a visible summary
-        yield ['content' => $this->buildToolResultSummary($toolResults), 'done' => false];
+        yield ['content' => $this->buildToolResultSummary($toolResults) . "\n\n", 'done' => false];
 
         // Feed stripped AI response + tool results back into conversation
         // We strip tool calls to save tokens and prevent context bloat
         $cleanAiResponse = $this->stripToolCalls($aiResponse);
         if (empty($cleanAiResponse)) {
             $cleanAiResponse = "Executed operations.";
+        } elseif (strlen($cleanAiResponse) > 400) {
+            $cleanAiResponse = substr($cleanAiResponse, 0, 300) . "... (checkpoint executed)";
         }
         $messages[] = ['role' => 'assistant', 'content' => $cleanAiResponse];
         $messages[] = ['role' => 'user', 'content' => $this->formatToolResults($toolResults)];
@@ -195,6 +237,21 @@ class AgentProcessor
             $toolCalls = $this->extractToolCalls($aiResponse);
 
             if (empty($toolCalls)) {
+                $isStalled = $this->isAiStalled($aiResponse, $iteration);
+
+                if ($isStalled) {
+                    Log::warning("AgentProcessor: phase2 AI stalled without tool_call, re-prompting", [
+                        'iteration' => $iteration,
+                        'preview'   => substr($aiResponse, 0, 150),
+                    ]);
+                    $messages[] = ['role' => 'assistant', 'content' => "Menyiapkan berkas berikutnya..."];
+                    $messages[] = [
+                        'role'    => 'user',
+                        'content' => "CRITICAL AUTONOMOUS INSTRUCTION: Anda mengumumkan langkah/berkas berikutnya tetapi TIDAK menyertakan blok `<tool_call>`. JANGAN tulis monolog, penjelasan, atau draft kode di chat. Pengguna ingin Anda bekerja secara otomatis tanpa menunggu kata 'lanjut'. Segera keluarkan blok `<tool_call>` untuk `write_file` SEKARANG juga!"
+                    ];
+                    continue;
+                }
+
                 // Final response
                 Cache::forget($this->stateTokenCachePrefix . $stateToken);
                 yield from $this->streamFinalResponse($aiResponse);
@@ -259,83 +316,134 @@ class AgentProcessor
 
     private function buildUserPrompt(string $message): string
     {
+        $clean = trim(strtolower($message));
+        $isContinuation = in_array($clean, ['lanjut', 'lanjutkan', 'continue', 'next', 'ok lanjut', 'oke lanjut']);
+
+        if ($isContinuation) {
+            return "USER REQUEST: Lanjutkan ke langkah/checkpoint berikutnya dan selesaikan semua berkas yang belum dibuat.\n\n"
+                . "CRITICAL AUTONOMOUS INSTRUCTION: Proceed IMMEDIATELY to the next checkpoint. Emit ONE `<tool_call>` block now without chatting or monologuing.";
+        }
+
         return "USER REQUEST: {$message}\n\n"
-            . "If the user asks you to create, edit, or delete files, use the appropriate tool. "
-            . "Do NOT write code in chat — use the write_file tool.";
+            . "CRITICAL EXECUTION PROTOCOL:\n"
+            . "1. AUTONOMOUS END-TO-END: Complete ALL parts of the user request automatically. Do NOT stop after one step or wait for the user to say 'lanjut'. Proceed sequentially through all checkpoints.\n"
+            . "2. IMMEDIATE TOOL CALL: In this turn, output AT MOST 1 brief line stating what file you are creating/updating, followed IMMEDIATELY by the `<tool_call>` block.\n"
+            . "3. ZERO CODE IN CHAT: NEVER dump raw HTML, CSS, or JS code into your chat text. Put ALL code inside the 'content' parameter of write_file.\n"
+            . "4. ZERO MONOLOGUE: Do NOT write internal thoughts, drafting, or step-by-step reasoning in chat. Emit the `<tool_call>` directly.";
     }
 
     private function buildAgentSystemPrompt(): string
     {
-        $dirListing = $this->getDirectoryListing($this->workspacePath);
+        $shouldScan = !empty($this->workspacePath) 
+            && $this->workspacePath !== '/' 
+            && !str_starts_with($this->workspacePath, '~');
+        $dirListing = $shouldScan ? $this->getDirectoryListing($this->workspacePath) : '';
+        $wsPath = !empty($this->workspacePath) ? $this->workspacePath : 'User Home (~/) & Global Mac Filesystem';
+        $structureBlock = !empty(trim($dirListing)) ? "\n**Directory Structure:**\n```\n{$dirListing}\n```\n" : "";
 
         return <<<PROMPT
-You are an AI coding agent. Your workspace:
+You are an autonomous AI system & coding agent operating on macOS (like Antigravity IDE / Gemini for Mac).
 
-**Path:** {$this->workspacePath}
-
-**Directory Structure:**
-```
-{$dirListing}
-```
+**Active Workspace / Context:** {$wsPath}{$structureBlock}
 
 ## Tools
 
-Use `<tool_call>` tags with JSON to operate on files. The tools will be executed on the user's machine.
+Use `<tool_call>` tags with JSON to operate on files. Tools are executed locally on the user's MacBook in the background.
 
 ### write_file
 Create or overwrite a file.
 ```json
-{"tool": "write_file", "path": "relative/path.ext", "content": "file contents"}
+{"tool": "write_file", "path": "path/to/file.ext", "content": "file contents"}
 ```
 
 ### read_file
 Read a file's contents.
 ```json
-{"tool": "read_file", "path": "relative/path.ext"}
+{"tool": "read_file", "path": "path/to/file.ext"}
 ```
 
 ### list_files
 List directory contents.
 ```json
-{"tool": "list_files", "path": "relative/path/"}
+{"tool": "list_files", "path": "path/to/dir/"}
 ```
 
 ### delete_file
 Delete a file.
 ```json
-{"tool": "delete_file", "path": "relative/path.ext"}
+{"tool": "delete_file", "path": "path/to/file.ext"}
 ```
 
 ## Rules
 
-1. **All paths are relative to workspace.** E.g. `"path": "login.html"` creates at workspace root.
-2. **Use write_file to create files.** Do NOT output code in chat.
-3. **Be concise.** After receiving tool results, give a brief confirmation.
-4. **Respond in the user's language.**
-5. **CRITICAL:** You MUST ONLY use ONE `<tool_call>` per response. Do not output multiple tool calls at once. After you issue one tool call, stop your response immediately and wait for the system to execute it.
-6. **JSON must be valid.** Escape double quotes in content as `\"` and use `\n` for newlines. Keep tool call JSON compact.
+1. **Step-by-Step Checkpoint Execution (Antigravity IDE Pattern):**
+   - When a user request involves multiple files or components (e.g. landing page with cart modal, product detail page, checkout page), **break the task down into discrete sequential checkpoints**.
+   - Work on **ONE file / checkpoint per turn**. Do NOT attempt to combine multiple pages into a single giant file.
+   - Sequence:
+     * Checkpoint 1: Read or update the primary page (e.g. edit `landing.html` to add cart badge & modal).
+     * Checkpoint 2: Create the next page (e.g. `detail-product.html` with responsive e-commerce layout).
+     * Checkpoint 3: Create the subsequent page (e.g. `checkout.html`).
+   - Execute ONE `<tool_call>` per turn. Once tool execution succeeds, proceed to the next checkpoint until all requested files are created.
+   - **CRITICAL CONTINUATION RULE:**
+     * In EVERY intermediate turn where more files or steps remain, you MUST include the `<tool_call>` block IMMEDIATELY in that turn.
+     * NEVER stop after merely saying "Let me write it", "Now step 2...", "Sekarang saya akan membuat...", or announcing your plan without the `<tool_call>`.
+     * If you state that you are going to write or create a file, you MUST include the `<tool_call>` block right away in the SAME response.
 
-## Example
+2. **CRITICAL ANTI-SLOWDOWN RULE:**
+   - **NEVER dump full HTML, CSS, or JavaScript code into your conversational chat response.**
+   - Put all complete file code ONLY inside the `"content"` parameter of the `write_file` `<tool_call>`.
+   - In chat, output only a short, 1-2 sentence description of the current checkpoint (e.g. *"Langkah 1: Menambahkan modal keranjang belanja pada landing.html..."*).
+   - Writing thousands of lines of raw code in chat will cause severe token bottlenecks and make the response extremely slow.
 
-User: "buatkan index.html dengan Hello World"
-Agent: <tool_call>{"tool": "write_file", "path": "index.html", "content": "<!DOCTYPE html>\n<html>\n<body><h1>Hello World</h1></body>\n</html>"}</tool_call>
+3. **Smart Path Mapping:**
+   - You can use relative paths (e.g. `"path": "index.html"`), OR
+   - You can use tilde or absolute paths (e.g. `"path": "~/Desktop/landing.html"`, `"path": "~/Desktop/detail-product.html"`). They are resolved and executed directly on the user's Mac.
 
-After tool results: "index.html telah dibuat."
+4. **Modular Web Architecture:**
+   - Keep pages clean, modular, and interconnected (e.g. links `<a href="detail-product.html">` and `<a href="checkout.html">`).
+   - Maintain consistent styling and design across all created pages.
+
+5. **CRITICAL:** You MUST ONLY emit ONE `<tool_call>` block per response turn. Do not output multiple tool calls at once. After emitting a tool call, stop immediately and wait for execution results.
+
+6. **JSON must be valid:** Escape double quotes in content as `\"` and use `\n` for newlines. Keep tool call JSON compact and valid.
+
+7. **Respond in the user's language.**
+
+## Example Multi-Step Flow
+
+User: "buatkan landing page dan halaman detail produk di Desktop"
+Agent Turn 1: "Langkah 1/2: Membuat landing page..." <tool_call>{"tool": "write_file", "path": "~/Desktop/landing.html", "content": "..."}</tool_call>
+(After tool result):
+Agent Turn 2: "Langkah 2/2: Membuat halaman detail produk..." <tool_call>{"tool": "write_file", "path": "~/Desktop/detail-product.html", "content": "..."}</tool_call>
+(After tool result):
+Agent Turn 3: "Seluruh halaman selesai dibuat! Berkas `landing.html` dan `detail-product.html` telah tersedia di Desktop Anda."
 PROMPT;
     }
 
     private function getDirectoryListing(string $path, int $maxDepth = 3, int $depth = 0): string
     {
-        if ($depth > $maxDepth || !is_dir($path)) return '';
+        $cleanPath = rtrim($path, '/');
+        // Never traverse root, virtual filesystems, system directories, or non-directories
+        $restricted = ['', '/', '/dev', '/proc', '/sys', '/etc', '/run', '/var', '/bin', '/sbin', '/usr', '/lib', '/tmp'];
+        if ($depth > $maxDepth || in_array($cleanPath, $restricted) || !@is_dir($path)) {
+            return '';
+        }
 
-        $items = scandir($path);
-        if (!$items) return '(empty)';
+        $items = @scandir($path);
+        if (!$items) return '';
 
         $dirs  = [];
         $files = [];
+        $ignored = ['.', '..', '.git', 'node_modules', 'vendor', 'storage', '.DS_Store', 'dev', 'proc', 'sys', 'run'];
         foreach ($items as $item) {
-            if ($item === '.' || $item === '..' || str_starts_with($item, '.')) continue;
-            is_dir("$path/$item") ? $dirs[] = $item : $files[] = $item;
+            if (str_starts_with($item, '.') || in_array($item, $ignored)) continue;
+            $full = $cleanPath . '/' . $item;
+            if (@is_link($full)) continue;
+            if (@is_dir($full)) {
+                $dirs[] = $item;
+            } elseif (@is_file($full)) {
+                $files[] = $item;
+            }
         }
         sort($dirs); sort($files);
 
@@ -344,13 +452,14 @@ PROMPT;
         $count = 0;
         foreach (array_merge($dirs, $files) as $item) {
             if ($count++ >= 50) { $lines[] = "$prefix... (truncated)"; break; }
-            $full = "$path/$item";
-            if (is_dir($full)) {
+            $full = $cleanPath . '/' . $item;
+            if (@is_dir($full)) {
                 $lines[] = $prefix . "📁 $item/";
-                $lines[] = $this->getDirectoryListing($full, $maxDepth, $depth + 1);
-            } else {
-                $size = filesize($full);
-                $sizeStr = $size !== false ? ' (' . $this->formatSize($size) . ')' : '';
+                $sub = $this->getDirectoryListing($full, $maxDepth, $depth + 1);
+                if (!empty($sub)) $lines[] = $sub;
+            } elseif (@is_file($full)) {
+                $size = @filesize($full);
+                $sizeStr = ($size !== false && $size !== null) ? ' (' . $this->formatSize($size) . ')' : '';
                 $lines[] = $prefix . "📄 $item" . $sizeStr;
             }
         }
@@ -385,7 +494,7 @@ PROMPT;
     {
         $calls = [];
 
-        // Match <tool_call>...</tool_call> blocks
+        // 1. Match <tool_call>...</tool_call> blocks
         if (preg_match_all('/<tool_call>\s*(.*?)\s*<\/tool_call>/s', $response, $matches)) {
             foreach ($matches[1] as $rawJson) {
                 $data = json_decode(trim($rawJson), true);
@@ -410,12 +519,40 @@ PROMPT;
             }
         }
 
-        // Fallback: bare JSON tool objects
+        // 2. Match unclosed <tool_call> (e.g. at the end of response)
+        if (empty($calls) && preg_match('/<tool_call>\s*([^{\n]*\{.*)$/s', $response, $matches)) {
+            $salvaged = $this->salvageJsonFields(trim($matches[1]));
+            if ($salvaged && isset($salvaged['tool'])) {
+                $calls[] = $salvaged;
+            }
+        }
+
+        // 3. Match ```tool_call or ```tool code fences
+        if (empty($calls) && preg_match_all('/```(?:tool_call|tool)\s*(.*?)\s*```/s', $response, $matches)) {
+            foreach ($matches[1] as $rawJson) {
+                $data = json_decode(trim($rawJson), true) ?: $this->salvageJsonFields(trim($rawJson));
+                if ($data && isset($data['tool'])) {
+                    $calls[] = $data;
+                }
+            }
+        }
+
+        // 4. Match ```json code fences containing "tool": "..."
+        if (empty($calls) && preg_match_all('/```(?:json)?\s*(\{[\s\S]*?"tool"\s*:\s*"(?:write_file|read_file|delete_file|list_files)"[\s\S]*?\})\s*```/s', $response, $matches)) {
+            foreach ($matches[1] as $rawJson) {
+                $data = json_decode(trim($rawJson), true) ?: $this->salvageJsonFields(trim($rawJson));
+                if ($data && isset($data['tool'])) {
+                    $calls[] = $data;
+                }
+            }
+        }
+
+        // 5. Fallback: bare JSON objects containing "tool": "write_file", etc.
         if (empty($calls)) {
-            if (preg_match_all('/\{[^{}]*"tool"\s*:\s*"(write_file|read_file|delete_file|list_files)"[^{}]*\}/s', $response, $matches)) {
-                foreach ($matches[0] as $json) {
-                    $data = json_decode($json, true);
-                    if ($data && isset($data['tool'])) $calls[] = $data;
+            if (preg_match('/\{[\s\S]*?"tool"\s*:\s*"(write_file|read_file|delete_file|list_files)"[\s\S]*?\}/s', $response, $match)) {
+                $data = json_decode(trim($match[0]), true) ?: $this->salvageJsonFields(trim($match[0]));
+                if ($data && isset($data['tool'])) {
+                    $calls[] = $data;
                 }
             }
         }
@@ -485,8 +622,55 @@ PROMPT;
                 }
             }
         }
-        $text .= "</tool_results>\n\nProvide your final response based on these results. Be concise.";
+        $text .= "</tool_results>\n\n"
+            . "Status of previous checkpoint: SUCCESSFUL.\n"
+            . "INSTRUCTION FOR NEXT ACTION:\n"
+            . "- Check the user's initial request. If any files, pages, or features remain unfinished, proceed to the NEXT checkpoint IMMEDIATELY by emitting ONE `<tool_call>` block.\n"
+            . "- AUTONOMOUS RULE: DO NOT wait for the user to say 'lanjut' or 'continue'. The user expects you to finish the entire task autonomously!\n"
+            . "- DO NOT output an announcement without the `<tool_call>`. You MUST include the `<tool_call>` block in this very response.\n"
+            . "- If and ONLY if ALL files and requested features are 100% completed and working, provide a concise final summary without any tool calls.";
         return $text;
+    }
+
+    /**
+     * Check if AI announced a step or drafted code but stalled without emitting a tool call.
+     */
+    private function isAiStalled(string $text, int $iteration): bool
+    {
+        if ($iteration >= 15) {
+            return false;
+        }
+
+        $lower = strtolower($text);
+
+        $stalledPhrases = [
+            'let me write', 'let me create', 'let me build', 'let me compose', 'let me produce',
+            'let me draft', 'let me craft', 'let me implement', 'let me now', 'let me add',
+            'i will create', 'i will write', 'i will build', 'i will make', 'i will now', 'i will add',
+            'i need to create', 'i need to write', 'i need to build', 'i need to make',
+            'now step', 'now create', 'now write', 'next step', 'remaining checkpoint', 'missing file',
+            'write it', 'write the tool call', 'writing now', 'let me check', 'let me start',
+            'saya akan membuat', 'langkah selanjutnya', 'akan saya buat', 'mari kita buat',
+            'saya akan menambahkan', 'berikutnya saya akan', 'belum dibuat', 'belum ada'
+        ];
+
+        foreach ($stalledPhrases as $p) {
+            if (str_contains($lower, $p)) {
+                return true;
+            }
+        }
+
+        // Checkpoint announcements like "Langkah 2/3:", "Step 3:", "Checkpoint 2:"
+        if (preg_match('/\b(?:langkah|step|checkpoint)\s*\d+/i', $text)) {
+            return true;
+        }
+
+        // Leaked HTML / CSS / code outside of tool call
+        if (preg_match('/<!doctype\s+html|<html[\s>]|```(?:html|css|javascript|js|php)/i', $text)) {
+            return true;
+        }
+
+        return false;
     }
 
     // ──────────────────────────────────────────────

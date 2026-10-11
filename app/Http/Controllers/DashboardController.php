@@ -153,8 +153,19 @@ class DashboardController extends Controller
         $graphManager = new GraphManager();
 
         if ($roomId) {
+            $nodeCount = KnowledgeNode::where('room_id', $roomId)->count();
+            if ($nodeCount === 0 && Message::where('room_id', $roomId)->where('graph_indexed', false)->where('sender_type', 'bot')->exists()) {
+                $graphManager->indexExistingMessages((int)$roomId);
+            }
             $data = $graphManager->getVisualizationData((int) $roomId, $limit);
         } else {
+            $totalNodes = KnowledgeNode::count();
+            if ($totalNodes === 0 && Message::where('graph_indexed', false)->where('sender_type', 'bot')->exists()) {
+                $unindexedRoomIds = Message::where('graph_indexed', false)->where('sender_type', 'bot')->distinct()->pluck('room_id');
+                foreach ($unindexedRoomIds as $rId) {
+                    $graphManager->indexExistingMessages((int)$rId);
+                }
+            }
             // Get global visualization (across all rooms)
             $nodes = KnowledgeNode::orderByDesc('frequency')
                 ->limit($limit)

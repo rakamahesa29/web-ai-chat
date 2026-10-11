@@ -185,6 +185,11 @@ class GraphManager
      */
     public function indexExistingMessages(int $roomId, ?string $modelName = null): array
     {
+        if (!$modelName) {
+            $room = Room::find($roomId);
+            $modelName = $room?->model;
+        }
+
         $messages = Message::where('room_id', $roomId)
             ->where('graph_indexed', false)
             ->orderBy('created_at')
@@ -205,22 +210,30 @@ class GraphManager
                 continue;
             }
 
-            if ($msg->sender_type === 'bot' && $userMessage) {
-                try {
-                    $this->processMessage(
-                        $roomId,
-                        $userMessage->content,
-                        $msg->content,
-                        $msg->id,
-                        $modelName
-                    );
-                    $results['processed']++;
-                } catch (\Exception $e) {
-                    Log::error("GraphManager: Failed to index message {$msg->id}: " . $e->getMessage());
-                    $results['errors']++;
-                }
+            if ($msg->sender_type === 'bot') {
+                $activeUser = $userMessage ?? Message::where('room_id', $roomId)
+                    ->where('sender_type', 'user')
+                    ->where('id', '<', $msg->id)
+                    ->latest('id')
+                    ->first();
 
-                $userMessage = null;
+                if ($activeUser && !empty(trim($activeUser->content))) {
+                    try {
+                        $this->processMessage(
+                            $roomId,
+                            $activeUser->content,
+                            $msg->content,
+                            $msg->id,
+                            $modelName
+                        );
+                        $results['processed']++;
+                    } catch (\Exception $e) {
+                        Log::error("GraphManager: Failed to index message {$msg->id}: " . $e->getMessage());
+                        $results['errors']++;
+                    }
+                } else {
+                    $results['skipped']++;
+                }
             }
         }
 
