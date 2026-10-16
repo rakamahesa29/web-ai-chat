@@ -71,9 +71,29 @@
                     <div class="relative">
                         <select name="model_name"
                             class="w-full p-4 pr-12 bg-hermes-surface border border-hermes-border rounded-xl focus:bg-hermes-hover focus:ring-2 focus:ring-hermes-accent focus:border-hermes-accent outline-none transition text-sm text-hermes-text cursor-pointer appearance-none">
-                            <option value="ollama" selected>Ollama (Ornith)</option>
-                            <option value="ollama_cloud">Ollama (Gemma4 31B Cloud)</option>
-                            <option value="deepseek">DeepSeek API</option>
+                            <optgroup label="Standard Models">
+                                <option value="ollama" selected>Ollama (Ornith)</option>
+                                <option value="ollama_cloud">Ollama (Gemma4 31B Cloud)</option>
+                                <option value="deepseek">DeepSeek API</option>
+                            </optgroup>
+                            <optgroup label="Gemini 3.8 Flash">
+                                <option value="gemini-3.8-flash-low">Gemini 3.8 Flash (Low)</option>
+                                <option value="gemini-3.8-flash-medium">Gemini 3.8 Flash (Medium)</option>
+                                <option value="gemini-3.8-flash-high">Gemini 3.8 Flash (High)</option>
+                            </optgroup>
+                            <optgroup label="Claude Sonnet 5.5">
+                                <option value="claude-sonnet-5-5-low">Claude Sonnet 5.5 (Low)</option>
+                                <option value="claude-sonnet-5-5-medium">Claude Sonnet 5.5 (Medium)</option>
+                                <option value="claude-sonnet-5-5-high">Claude Sonnet 5.5 (High)</option>
+                            </optgroup>
+                            <optgroup label="Claude Opus 5.5">
+                                <option value="claude-opus-5-5-low">Claude Opus 5.5 (Low)</option>
+                                <option value="claude-opus-5-5-medium">Claude Opus 5.5 (Medium)</option>
+                                <option value="claude-opus-5-5-high">Claude Opus 5.5 (High)</option>
+                            </optgroup>
+                            <optgroup label="GPT-OSS">
+                                <option value="gpt-oss-120b-medium">GPT-OSS 120B (Medium)</option>
+                            </optgroup>
                         </select>
                         <div class="absolute inset-y-0 right-4 flex items-center pointer-events-none text-hermes-muted">
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

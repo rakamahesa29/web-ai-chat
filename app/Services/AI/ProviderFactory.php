@@ -31,6 +31,10 @@ class ProviderFactory
                 $config->model_name_api,
                 $options['system_prompt'] ?? ''
             ),
+            'gemini' => new \App\Services\AI\Adapters\GeminiAdapter(
+                $config->model_name_api,
+                $options['system_prompt'] ?? ''
+            ),
             default => new OllamaAdapter($config->model_name_api),
         };
     }

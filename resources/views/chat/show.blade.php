@@ -174,11 +174,31 @@
                         </span>
                         <span class="text-xs font-medium text-hermes-muted transition-colors" id="dsProLabel">DeepSeek Pro</span>
                     </button>
-                    <select id="modelSelect" class="hermes-input py-2 px-3 text-sm w-36 md:w-44 cursor-pointer">
+                    <select id="modelSelect" class="hermes-input py-2 px-3 text-sm w-44 md:w-56 cursor-pointer">
                         @php $currentModel = request('model') ?? $room->model ?? 'deepseek'; @endphp
-                        <option value="ollama" {{ $currentModel === 'ollama' ? 'selected' : '' }}>Ornith</option>
-                        <option value="ollama_cloud" {{ $currentModel === 'ollama_cloud' ? 'selected' : '' }}>Gemma4 31B Cloud</option>
-                        <option value="deepseek" {{ $currentModel === 'deepseek' ? 'selected' : '' }}>DeepSeek API</option>
+                        <optgroup label="Standard Models">
+                            <option value="ollama" {{ $currentModel === 'ollama' ? 'selected' : '' }}>Ornith (Local)</option>
+                            <option value="ollama_cloud" {{ $currentModel === 'ollama_cloud' ? 'selected' : '' }}>Gemma4 31B Cloud</option>
+                            <option value="deepseek" {{ $currentModel === 'deepseek' ? 'selected' : '' }}>DeepSeek API</option>
+                        </optgroup>
+                        <optgroup label="Gemini 3.8 Flash">
+                            <option value="gemini-3.8-flash-low" {{ in_array($currentModel, ['gemini-3.8-flash-low', 'gemini', 'gemini_pro']) ? 'selected' : '' }}>Gemini 3.8 Flash (Low)</option>
+                            <option value="gemini-3.8-flash-medium" {{ $currentModel === 'gemini-3.8-flash-medium' ? 'selected' : '' }}>Gemini 3.8 Flash (Medium)</option>
+                            <option value="gemini-3.8-flash-high" {{ $currentModel === 'gemini-3.8-flash-high' ? 'selected' : '' }}>Gemini 3.8 Flash (High)</option>
+                        </optgroup>
+                        <optgroup label="Claude Sonnet 5.5">
+                            <option value="claude-sonnet-5-5-low" {{ $currentModel === 'claude-sonnet-5-5-low' ? 'selected' : '' }}>Claude Sonnet 5.5 (Low)</option>
+                            <option value="claude-sonnet-5-5-medium" {{ $currentModel === 'claude-sonnet-5-5-medium' ? 'selected' : '' }}>Claude Sonnet 5.5 (Medium)</option>
+                            <option value="claude-sonnet-5-5-high" {{ $currentModel === 'claude-sonnet-5-5-high' ? 'selected' : '' }}>Claude Sonnet 5.5 (High)</option>
+                        </optgroup>
+                        <optgroup label="Claude Opus 5.5">
+                            <option value="claude-opus-5-5-low" {{ $currentModel === 'claude-opus-5-5-low' ? 'selected' : '' }}>Claude Opus 5.5 (Low)</option>
+                            <option value="claude-opus-5-5-medium" {{ $currentModel === 'claude-opus-5-5-medium' ? 'selected' : '' }}>Claude Opus 5.5 (Medium)</option>
+                            <option value="claude-opus-5-5-high" {{ $currentModel === 'claude-opus-5-5-high' ? 'selected' : '' }}>Claude Opus 5.5 (High)</option>
+                        </optgroup>
+                        <optgroup label="GPT-OSS">
+                            <option value="gpt-oss-120b-medium" {{ $currentModel === 'gpt-oss-120b-medium' ? 'selected' : '' }}>GPT-OSS 120B (Medium)</option>
+                        </optgroup>
                     </select>
                 </div>
             </header>
@@ -356,8 +376,27 @@
             <div class="hermes-status-bar" id="status-bar">
                 <div class="hermes-status-item">
                     <i data-lucide="cpu" class="w-3.5 h-3.5"></i>
+                    @php
+                        $modelLabels = [
+                            'gemini-3.8-flash-low' => 'Gemini 3.8 Flash (Low)',
+                            'gemini-3.8-flash-medium' => 'Gemini 3.8 Flash (Med)',
+                            'gemini-3.8-flash-high' => 'Gemini 3.8 Flash (High)',
+                            'claude-sonnet-5-5-low' => 'Claude Sonnet 5.5 (Low)',
+                            'claude-sonnet-5-5-medium' => 'Claude Sonnet 5.5 (Med)',
+                            'claude-sonnet-5-5-high' => 'Claude Sonnet 5.5 (High)',
+                            'claude-opus-5-5-low' => 'Claude Opus 5.5 (Low)',
+                            'claude-opus-5-5-medium' => 'Claude Opus 5.5 (Med)',
+                            'claude-opus-5-5-high' => 'Claude Opus 5.5 (High)',
+                            'gpt-oss-120b-medium' => 'GPT-OSS 120B (Med)',
+                            'gemini_pro' => 'Gemini 3.8 Flash',
+                            'gemini' => 'Gemini 3.8 Flash',
+                            'deepseek' => 'DeepSeek',
+                            'ollama_cloud' => 'Gemma4 31-Cloud',
+                            'ollama' => 'ornith-1.5',
+                        ];
+                    @endphp
                     <span id="status-model">
-                        {{ $currentModel === 'deepseek' ? 'DeepSeek' : ($currentModel === 'ollama_cloud' ? 'Gemma4 31-Cloud' : 'ornith-1.5') }}
+                        {{ $modelLabels[$currentModel] ?? $currentModel }}
                     </span>
                 </div>
                 <div class="hermes-status-item">
@@ -424,9 +463,46 @@
         let activeAbortController = null;
         let attachedImages = [];
 
+        function formatMathToUnicode(text) {
+            if (!text) return '';
+            const subMap = {'0':'₀','1':'₁','2':'₂','3':'₃','4':'₄','5':'₅','6':'₆','7':'₇','8':'₈','9':'₉','+':'₊','-':'₋','=':'₌','(':'₍',')':'₎','.':'.','a':'ₐ','e':'ₑ','o':'ₒ','x':'ₓ'};
+            const supMap = {'0':'⁰','1':'¹','2':'²','3':'³','4':'⁴','5':'⁵','6':'⁶','7':'⁷','8':'⁸','9':'⁹','+':'⁺','-':'⁻','=':'⁼','(':'⁽',')':'⁾','n':'ⁿ','i':'ⁱ'};
+            
+            // Protect code blocks
+            const codeBlocks = [];
+            let clean = text.replace(/(```[\s\S]*?```|`[^`\n]+`)/g, (match) => {
+                codeBlocks.push(match);
+                return `%%WEB_CODE_${codeBlocks.length - 1}%%`;
+            });
+
+            // Replace math blocks $$...$$ or $...$
+            clean = clean.replace(/\$\$([\s\S]*?)\$\$|\$([^\$\n]+)\$/g, (match, block, inline) => {
+                let expr = block || inline;
+                expr = expr.replace(/_\{([^{}]+)\}/g, (_, s) => s.split('').map(c => subMap[c] || c).join(''));
+                expr = expr.replace(/_([0-9a-zA-Z])/g, (_, s) => subMap[s] || s);
+                expr = expr.replace(/\^\{([^{}]+)\}/g, (_, s) => s.split('').map(c => supMap[c] || c).join(''));
+                expr = expr.replace(/\^([0-9a-zA-Z])/g, (_, s) => supMap[s] || s);
+                expr = expr.replace(/\\times/g, '×').replace(/\\pm/g, '±').replace(/\\approx/g, '≈')
+                           .replace(/\\neq/g, '≠').replace(/\\le(q)?/g, '≤').replace(/\\ge(q)?/g, '≥')
+                           .replace(/\\alpha/g, 'α').replace(/\\beta/g, 'β').replace(/\\pi/g, 'π')
+                           .replace(/\\mu/g, 'µ').replace(/\\cdot/g, '·').replace(/\\degree/g, '°')
+                           .replace(/\\text\{([^{}]+)\}/g, '$1');
+                return expr;
+            });
+
+            // Scientific units outside math (PM_{2.5}, CO_2)
+            clean = clean.replace(/\b([A-Z][a-zA-Z]*)_\{([0-9\.]+)\}/g, (_, name, sub) => name + sub.split('').map(c => subMap[c] || c).join(''));
+            clean = clean.replace(/\b([A-Z][a-zA-Z]*)_([0-9]+)/g, (_, name, sub) => name + sub.split('').map(c => subMap[c] || c).join(''));
+
+            // Restore code blocks
+            clean = clean.replace(/%%WEB_CODE_(\d+)%%/g, (_, idx) => codeBlocks[Number(idx)]);
+            return clean;
+        }
+
         function parseMarkdownSafe(text) {
             if (!text) return '';
-            let processed = text.replace(/<i data-lucide="([^"]+)"><\/i>/g, '%%LUCIDE_ICON_$1%%');
+            let processed = formatMathToUnicode(text);
+            processed = processed.replace(/<i data-lucide="([^"]+)"><\/i>/g, '%%LUCIDE_ICON_$1%%');
             let html = typeof marked !== 'undefined' ? marked.parse(processed) : processed;
             return html.replace(/%%LUCIDE_ICON_([^%]+)%%/g, '<i data-lucide="$1"></i>');
         }
@@ -1664,7 +1740,23 @@
         
         document.getElementById('modelSelect').addEventListener('change', function(e) {
             document.getElementById('selectedModel').value = e.target.value;
-            statusModel.textContent = e.target.value === 'deepseek' ? 'DeepSeek' : e.target.value === 'ollama_cloud' ? 'Gemma4 31B Cloud' : 'ornith-1.5';
+            const labels = {
+                'gemini-3.8-flash-low': 'Gemini 3.8 Flash (Low)',
+                'gemini-3.8-flash-medium': 'Gemini 3.8 Flash (Med)',
+                'gemini-3.8-flash-high': 'Gemini 3.8 Flash (High)',
+                'claude-sonnet-5-5-low': 'Claude Sonnet 5.5 (Low)',
+                'claude-sonnet-5-5-medium': 'Claude Sonnet 5.5 (Med)',
+                'claude-sonnet-5-5-high': 'Claude Sonnet 5.5 (High)',
+                'claude-opus-5-5-low': 'Claude Opus 5.5 (Low)',
+                'claude-opus-5-5-medium': 'Claude Opus 5.5 (Med)',
+                'claude-opus-5-5-high': 'Claude Opus 5.5 (High)',
+                'gpt-oss-120b-medium': 'GPT-OSS 120B (Med)',
+                'gemini_pro': 'Gemini 3.8 Flash',
+                'deepseek': 'DeepSeek',
+                'ollama_cloud': 'Gemma4 31B Cloud',
+                'ollama': 'ornith-1.5'
+            };
+            statusModel.textContent = labels[e.target.value] || e.target.value;
 
             const url = new URL(window.location);
             url.searchParams.set('model', e.target.value);

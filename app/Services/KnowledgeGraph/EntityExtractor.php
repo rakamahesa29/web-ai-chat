@@ -95,7 +95,7 @@ PROMPT;
             }
         }
 
-        $candidates = ['deepseek', 'anthropic', 'ollama', 'ollama_cloud'];
+        $candidates = ['deepseek', 'gemini_pro', 'anthropic', 'ollama', 'ollama_cloud'];
         foreach ($candidates as $candidate) {
             try {
                 $config = \App\Services\AI\ConfigurationManager::getConfiguration($candidate);

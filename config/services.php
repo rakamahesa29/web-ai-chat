@@ -148,6 +148,11 @@ RULES:
         'api_key'  => env('ANTHROPIC_API_KEY'),
     ],
 
+    'gemini' => [
+        'base_url' => env('GEMINI_PROXY_URL', 'http://host.docker.internal:8095/v1'),
+        'model'    => env('GEMINI_MODEL', 'gemini-pro'),
+    ],
+
 
     'tavily' => [
         'api_key' => env('TAVILY_API_KEY'),

@@ -17,15 +17,17 @@ class PromptBuilder
      * Build payload for LLM based on Room data and message history.
      * Now with intelligent query classification for smarter RAG usage.
      */
-    public function build(Room $room, Collection $recentMessages, string $modelName = null, array $options = []): array
+    public function build(Room $room, Collection $recentMessages, ?string $modelName = null, array $options = []): array
     {
         $payload = [];
 
         // 1. Resolve Active Model Name
         $modelMapping = [
-            'ollama'    => 'services.ollama.model',
-            'ollama_cloud'    => 'services.ollama_cloud.model',
-            'deepseek'  => 'services.deepseek.model',
+            'ollama'       => 'services.ollama.model',
+            'ollama_cloud' => 'services.ollama_cloud.model',
+            'deepseek'     => 'services.deepseek.model',
+            'gemini'       => 'services.gemini.model',
+            'gemini_pro'   => 'services.gemini.model',
         ];
 
         if (isset($modelMapping[$modelName])) {

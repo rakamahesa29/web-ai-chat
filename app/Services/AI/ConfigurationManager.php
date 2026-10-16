@@ -49,6 +49,21 @@ class ConfigurationManager
                 'is_active'      => $isActive,
                 'api_key'        => config('services.anthropic.api_key'),
             ];
+        } elseif (
+            $modelName === 'gemini' || 
+            $modelName === 'gemini_pro' ||
+            str_starts_with($modelName, 'gemini-') ||
+            str_starts_with($modelName, 'claude-') ||
+            str_starts_with($modelName, 'gpt-')
+        ) {
+            $setting = DB::table('settings')->where('key', 'gemini_enabled')->first();
+            $isActive = $setting ? (bool)$setting->value : true;
+
+            $config = (object) [
+                'provider'       => 'gemini',
+                'model_name_api' => in_array($modelName, ['gemini', 'gemini_pro']) ? 'gemini-3.8-flash-low' : $modelName,
+                'is_active'      => $isActive,
+            ];
         } else {
             // Fallback untuk model dari database jika ada
             $config = AiConfig::where('model_name', $modelName)->first();

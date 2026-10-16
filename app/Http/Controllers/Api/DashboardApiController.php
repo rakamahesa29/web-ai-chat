@@ -47,6 +47,7 @@ class DashboardApiController extends Controller
                     'ollama_enabled'       => filter_var($allSettings['ollama_enabled'] ?? true, FILTER_VALIDATE_BOOLEAN),
                     'ollama_cloud_enabled' => filter_var($allSettings['ollama_cloud_enabled'] ?? false, FILTER_VALIDATE_BOOLEAN),
                     'deepseek_enabled'     => filter_var($allSettings['deepseek_enabled'] ?? false, FILTER_VALIDATE_BOOLEAN),
+                    'gemini_enabled'       => filter_var($allSettings['gemini_enabled'] ?? true, FILTER_VALIDATE_BOOLEAN),
                 ],
             ],
         ]);
@@ -73,7 +74,7 @@ class DashboardApiController extends Controller
     public function updateProviderMode(Request $request)
     {
         $request->validate([
-            'provider' => 'required|string|in:ollama,ollama_cloud,deepseek',
+            'provider' => 'required|string|in:ollama,ollama_cloud,deepseek,gemini',
             'enabled'  => 'required|boolean',
         ]);
 

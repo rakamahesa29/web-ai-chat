@@ -75,7 +75,7 @@ services:
     phpmyadmin:
         image: arm64v8/phpmyadmin
         ports:
-            - '8080:80'
+            - '${FORWARD_PHPMYADMIN_PORT:-8082}:80'
         environment:
             PMA_HOST: mysql
             PMA_USER: '${DB_USERNAME}'

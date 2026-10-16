@@ -131,7 +131,7 @@ class ChatApiController extends Controller
 
         $request->validate([
             'message'        => 'required|string',
-            'model'          => 'sometimes|string|in:ollama,ollama_cloud,deepseek,anthropic',
+            'model'          => 'sometimes|string',
             'use_web_search' => 'sometimes|boolean',
             'deepseek_pro'   => 'sometimes|boolean',
             'skripsi_mode'   => 'sometimes|boolean',

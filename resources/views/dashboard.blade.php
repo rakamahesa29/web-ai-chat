@@ -85,6 +85,21 @@
                             class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform duration-200 {{ !empty($stats['is_deepseek_mode']) ? 'translate-x-6' : 'translate-x-1' }}"></span>
                     </button>
                 </div>
+
+                <!-- Gemini Pro Toggle -->
+                <div class="flex items-center gap-4 bg-hermes-surface p-3 rounded-xl border border-hermes-border">
+                    <div class="flex items-center gap-3">
+                        <div class="w-8 h-8 bg-indigo-500/10 rounded-lg flex items-center justify-center">
+                            <i data-lucide="sparkles" class="w-4 h-4 text-indigo-400"></i>
+                        </div>
+                        <span class="text-sm font-medium text-hermes-text">Gemini Pro</span>
+                    </div>
+                    <button onclick="toggleProvider('gemini')" id="toggle-gemini"
+                        class="relative inline-flex h-6 w-11 items-center rounded-full {{ !empty($stats['is_gemini_mode']) ? 'bg-hermes-success' : 'bg-hermes-border' }} transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-hermes-accent focus:ring-offset-2 focus:ring-offset-hermes-bg">
+                        <span id="pill-gemini"
+                            class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform duration-200 {{ !empty($stats['is_gemini_mode']) ? 'translate-x-6' : 'translate-x-1' }}"></span>
+                    </button>
+                </div>
             </div>
         </div>
 
@@ -705,7 +720,8 @@
             const labels = {
                 'ollama': 'ornith-1.5',
                 'ollama_cloud': 'Gemma4 31B',
-                'deepseek': 'DeepSeek'
+                'deepseek': 'DeepSeek',
+                'gemini': 'Gemini Pro'
             };
             return labels[provider] || provider;
         }

@@ -29,7 +29,7 @@ class ChatProcessor
             $room = Room::findOrFail($roomId);
             
             $agentHistoryLimit = match(true) {
-                in_array($modelName, ['deepseek']) => 40,
+                in_array($modelName, ['deepseek', 'gemini', 'gemini_pro']) => 40,
                 in_array($modelName, ['ollama_cloud']) => 30,
                 default => 20,
             };

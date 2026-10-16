@@ -8,10 +8,11 @@ A full-featured, self-hosted AI chat application built with Laravel 13 and a dar
 - **Frontend:** Blade + Tailwind CSS + Alpine.js
 - **Icons:** Lucide Icons (CDN)
 - **Database:** MySQL 8
-- **LLM Providers:** Ollama (local), Ollama Cloud, DeepSeek API (Flash + Pro)
+- **LLM Providers:** Ollama (local), Ollama Cloud, DeepSeek API (Flash + Pro), and Antigravity Local Bridge (Gemini Pro, Gemini 3.8 Flash, Claude Sonnet 5.5, Claude Opus 5.5, GPT-OSS 120B)
 - **Embeddings:** Ollama `bge-m3:567m`
 - **Web Search:** Tavily API
 - **PDF Parsing:** smalot/pdfparser
+- **Local Bridge Daemon:** Python 3 HTTP/1.1 Bridge + macOS LaunchAgent (`0.0.0.0:8095`) connected to host `agy` CLI
 
 ## Features
 
@@ -21,13 +22,20 @@ A full-featured, self-hosted AI chat application built with Laravel 13 and a dar
 - **Infinite Reasoning Timeout:** DeepSeek API connections are configured with extended timeouts (15+ minutes) to ensure that reasoning models (DeepSeek Pro) do not timeout during massive multi-file generation tasks.
 - **Agent Context Summarization (Sliding Window):** Prevents token inflation during massive generation tasks by intelligently stripping out raw JSON/XML tool calls from the conversation history and compacting successful file write payloads, ensuring ultra-fast TTFT (Time To First Token) even after 30 iterations.
 
-### Multi-Provider AI Chat
-- **Three LLM backends** switchable per-message: Ollama local (Ornith), Ollama Cloud (Gemma4 31B), and DeepSeek API.
+### Multi-Provider AI Chat & Antigravity Models
+- **Multiple LLM backends** switchable per-message:
+  - **Standard Models:** Ollama local (Ornith), Ollama Cloud (Gemma4 31B), DeepSeek API (Flash / Pro).
+  - **Antigravity / Gemini Subscription Models:** Direct proxy to local authenticated `agy` CLI without requiring separate Google AI Studio API billing:
+    - **Gemini 3.8 Flash** (`low`, `medium`, `high` thinking effort)
+    - **Claude Sonnet 5.5** (`low`, `medium`, `high` thinking effort)
+    - **Claude Opus 5.5** (`low`, `medium`, `high` thinking effort)
+    - **GPT-OSS 120B** (`medium` thinking effort)
+    - **Gemini Pro** (default fallback)
+- **Hierarchical Model Selector:** Organized `<optgroup>` UI dropdown allowing rapid selection between Standard and Antigravity thinking models.
 - **DeepSeek Pro Mode:** Toggle to switch from DeepSeek V4 Flash to DeepSeek V4 Pro with chain-of-thought reasoning enabled. Thinking/reasoning steps are rendered in a collapsible `<details>` block in the UI.
-- **Adaptive reasoning effort:** DeepSeek Pro automatically adjusts reasoning depth based on query classification — `low` for general chat, `medium` for latest data queries, `high` for domain-specific/code tasks.
-- **DeepSeek prefix caching:** System prompt is split into a stable static prefix (cached by DeepSeek's KV cache) and dynamic RAG content, reducing TTFT by up to 50-80% on repeated sessions.
-- **Real-time SSE streaming** for all providers with 8KB read buffers and token-by-token rendering.
-- **Ollama keep-alive:** Models stay loaded in VRAM for 24 hours with TCP keep-alive connections, eliminating cold-start latency.
+- **Adaptive reasoning effort:** Automatically adjusts reasoning depth based on query classification.
+- **Real-time SSE streaming** for all providers with unbuffered real-time token rendering.
+- **Unicode LaTeX Math & Scientific Renderer:** Built-in formatting pipeline converting LaTeX math syntax (e.g. `$PM_{2.5}$` $\to$ `PM₂.₅`, `CO_2` $\to$ `CO₂`, `H_2O`, superscripts, Greek symbols, and arithmetic notation) while preserving code blocks and standard currency symbols.
 - Provider toggles on the Dashboard to enable/disable each backend.
 
 ### AI Personas
@@ -253,6 +261,10 @@ DEEPSEEK_PRO_REASONING_EFFORT=high
 # Tavily Web Search
 TAVILY_API_KEY=your-tavily-api-key
 
+# Antigravity Gemini Subscription Bridge
+GEMINI_PROXY_URL=http://host.docker.internal:8095/v1
+GEMINI_MODEL=gemini-pro
+
 # RAG
 RAG_ENABLED=true
 RAG_CHUNK_SIZE=2000
@@ -263,6 +275,15 @@ RAG_HYBRID_SEARCH=true
 
 # Knowledge Graph
 KNOWLEDGE_GRAPH_ENABLED=true
+```
+
+### Antigravity Local Bridge Setup (macOS)
+The bridge proxies requests from the Docker container to the host `agy` CLI using your authenticated subscription:
+
+```bash
+# Script location: ~/.local/gemini-bridge/gemini_bridge.py
+# Automatic background daemon managed via LaunchAgent:
+launchctl load ~/Library/LaunchAgents/com.antigravity.gemini-bridge.plist
 ```
 
 ### Database & Build

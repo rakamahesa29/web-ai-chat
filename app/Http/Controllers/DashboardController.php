@@ -57,6 +57,7 @@ class DashboardController extends Controller
             'is_ollama_mode'    => filter_var($allSettings['ollama_enabled'] ?? true, FILTER_VALIDATE_BOOLEAN),
             'is_ollama_cloud_mode'    => filter_var($allSettings['ollama_cloud_enabled'] ?? true, FILTER_VALIDATE_BOOLEAN),
             'is_deepseek_mode'  => filter_var($allSettings['deepseek_enabled'] ?? false, FILTER_VALIDATE_BOOLEAN),
+            'is_gemini_mode'    => filter_var($allSettings['gemini_enabled'] ?? true, FILTER_VALIDATE_BOOLEAN),
         ];
 
         // Ambil data Radar Chart
